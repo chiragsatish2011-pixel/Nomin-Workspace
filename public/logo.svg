@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 220" fill="none" role="img" aria-label="Nomin mark">
+  <defs>
+    <linearGradient id="nominGrad" x1="20" y1="180" x2="220" y2="20" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3b1470"/>
+      <stop offset="22%" stop-color="#7c3aed"/>
+      <stop offset="48%" stop-color="#34d399"/>
+      <stop offset="74%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#7c5cff"/>
+    </linearGradient>
+    <linearGradient id="nominGradSoft" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity=".9"/>
+      <stop offset="55%" stop-color="#2dd4bf" stop-opacity=".9"/>
+      <stop offset="100%" stop-color="#3daeff" stop-opacity=".9"/>
+    </linearGradient>
+    <filter id="nominGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+  <!-- curled chameleon body : thick gradient stroke -->
+  <g filter="url(#nominGlow)">
+    <path
+      d="M 62 168 C 48 128 72 62 138 40 C 188 23 222 62 212 118 C 204 158 184 184 158 202"
+      stroke="url(#nominGrad)"
+      stroke-width="46"
+      stroke-linecap="round"
+      fill="none"
+    />
+    <!-- inner sheen -->
+    <path
+      d="M 66 160 C 55 125 78 68 138 46 C 182 31 212 64 203 114"
+      stroke="white"
+      stroke-opacity=".18"
+      stroke-width="12"
+      stroke-linecap="round"
+      fill="none"
+    />
+    <!-- head -->
+    <ellipse cx="56" cy="168" rx="30" ry="26" transform="rotate(-18 56 168)" fill="url(#nominGrad)"/>
+    <!-- legs -->
+    <path d="M 92 148 C 88 162 84 170 76 176" stroke="url(#nominGrad)" stroke-width="14" stroke-linecap="round" fill="none"/>
+    <path d="M 118 138 C 116 152 112 162 104 168" stroke="url(#nominGrad)" stroke-width="12" stroke-linecap="round" fill="none"/>
+    <path d="M 148 118 C 148 132 144 142 136 148" stroke="url(#nominGrad)" stroke-width="12" stroke-linecap="round" fill="none"/>
+    <path d="M 172 108 C 174 122 170 134 162 140" stroke="url(#nominGrad)" stroke-width="12" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>

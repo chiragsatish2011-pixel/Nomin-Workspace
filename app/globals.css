@@ -1,0 +1,422 @@
+@import "tailwindcss";
+
+/*
+ * NOMIN DESIGN SYSTEM - Kraken edition (see DESIGN-kraken.md)
+ * -----------------------------------------------------------
+ * Clean, trustworthy light theme. Kraken Purple (#7132f5) is the commanding
+ * brand color: primary CTAs, links, focus. White canvas, near-black text,
+ * cool blue-gray neutrals, whisper-level shadows, 12px button radius
+ * (rounded-xl, never pills). Green (#149e61) for success states.
+ *
+ * Type stand-ins: Space Grotesk display + Inter body + Geist Mono micro
+ * labels (Kraken-Brand / Kraken-Product are proprietary).
+ *
+ * Token names are kept stable from the workspace scaffold so every
+ * component renders the Kraken theme with no structural changes.
+ */
+
+@theme inline {
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-space-grotesk);
+  --font-mono: var(--font-geist-mono);
+}
+
+@theme {
+  /* Ink & neutrals (Kraken scale) */
+  --color-ink: #101114;
+  --color-charcoal: #2a2d3a;
+  --color-slate: #484b5e;
+  --color-steel: #686b82;
+  --color-stone: #9497a9;
+  --color-muted: #b6b9c6;
+  --color-canvas: #ffffff;
+  --color-fog: #f6f7f9;
+  --color-mist: #eef0f4;
+  --color-hairline: #dedee5;
+  --color-hairline-soft: #eaebf0;
+
+  /* Brand bands (repointed: Kraken deep purples, not pine green) */
+  --color-pine: #5b1ecf;
+  --color-pine-deep: #2a1065;
+  --color-navy: #1c0b45;
+
+  /* Nomin / Kraken identity */
+  --color-kraken: #7132f5;
+  --color-kraken-dark: #5741d8;
+  --color-kraken-deep: #5b1ecf;
+  --color-kraken-subtle: rgba(133, 91, 251, 0.16);
+  --color-nomin-violet: #7132f5;
+  --color-nomin-purple: #a855f7;
+  --color-nomin-teal: #0e9f8a;
+  --color-nomin-cyan: #3daeff;
+  --color-nomin-lime: #65a30d;
+  --color-agent: #7132f5;
+
+  /* Section identity colors (matrix cards only, never generic UI) */
+  --color-coral: #ff5530;
+  --color-coral-deep: #d63a17;
+  --color-magenta: #ea5ec1;
+  --color-azure: #1456f0;
+  --color-azure-deep: #1d4ed8;
+  --color-azure-soft: #e3edff;
+  --color-cyan: #3daeff;
+  --color-violet: #7132f5;
+  --color-teal: #0e9f8a;
+  --color-teal-deep: #026b3f;
+
+  /* Semantic (Kraken badges) */
+  --color-success-bg: rgba(20, 158, 97, 0.16);
+  --color-success-text: #026b3f;
+  --color-error: #d45656;
+  --color-error-bg: #fdeeee;
+  --color-focus: #7132f5;
+
+  /* Motion tokens */
+  --animate-fade-up: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.9s ease both;
+  --animate-float-slow: float 9s ease-in-out infinite;
+  --animate-float-slower: float 13s ease-in-out infinite reverse;
+  --animate-gradient-pan: gradient-pan 11s ease infinite alternate;
+  --animate-pulse-dot: pulse-dot 2.2s ease-in-out infinite;
+  --animate-marquee: marquee 28s linear infinite;
+  --animate-blink: blink 1.1s steps(2, start) infinite;
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-orb: orb 16s ease-in-out infinite alternate;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(26px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(0, -22px, 0) scale(1.06);
+    }
+  }
+  @keyframes gradient-pan {
+    from {
+      background-position: 0% 40%;
+    }
+    to {
+      background-position: 100% 60%;
+    }
+  }
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(20, 158, 97, 0.45);
+    }
+    50% {
+      box-shadow: 0 0 0 7px rgba(20, 158, 97, 0);
+    }
+  }
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+  @keyframes orb {
+    from {
+      transform: translate3d(-6%, -4%, 0) scale(1);
+    }
+    to {
+      transform: translate3d(6%, 6%, 0) scale(1.18);
+    }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(113, 50, 245, 0.22);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Light scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c9ccd8 transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #c9ccd8;
+  border-radius: 8px;
+  border: 2px solid #ffffff;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* -- Kraken buttons (12px radius, never pills) ------------------------ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 12px;
+  font-weight: 600;
+  transition:
+    transform 0.15s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    opacity 0.2s ease;
+}
+.btn:active {
+  transform: scale(0.98);
+}
+.btn-primary {
+  background: #7132f5;
+  color: #ffffff;
+  padding: 13px 16px;
+  box-shadow: rgba(0, 0, 0, 0.03) 0px 4px 24px;
+}
+.btn-primary:hover {
+  background: #5b1ecf;
+}
+.btn-outlined {
+  background: #ffffff;
+  color: #5741d8;
+  border: 1px solid #5741d8;
+  padding: 13px 16px;
+}
+.btn-outlined:hover {
+  background: rgba(133, 91, 251, 0.08);
+}
+.btn-subtle {
+  background: rgba(133, 91, 251, 0.16);
+  color: #7132f5;
+  padding: 8px 14px;
+}
+.btn-subtle:hover {
+  background: rgba(133, 91, 251, 0.24);
+}
+.btn-secondary {
+  background: rgba(148, 151, 169, 0.08);
+  color: #101114;
+  padding: 13px 16px;
+}
+.btn-secondary:hover {
+  background: rgba(148, 151, 169, 0.16);
+}
+
+/* -- Scroll reveal (paired with <Reveal/>) --------------------------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* -- Gradient product cards ------------------------------------------ */
+.grad-pan {
+  background-size: 180% 180%;
+}
+.grad-pan-animated {
+  animation: gradient-pan 11s ease infinite alternate;
+  background-size: 180% 180%;
+}
+
+/* Light-sheen sweep on hover (pure CSS, GPU-friendly) */
+.card-sheen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.card-sheen::after {
+  content: "";
+  position: absolute;
+  inset: -60%;
+  z-index: 1;
+  background: linear-gradient(
+    105deg,
+    transparent 42%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 58%
+  );
+  transform: translateX(-70%);
+  transition: transform 0.9s ease;
+  pointer-events: none;
+}
+.card-sheen:hover::after {
+  transform: translateX(70%);
+}
+
+/* -- Nomin accents on light ------------------------------------------ */
+.text-gradient-nomin {
+  background: linear-gradient(92deg, #5b1ecf 0%, #0e9f8a 52%, #1456f0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #eaebf0;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.glow-nomin {
+  box-shadow:
+    0 0 0 1px rgba(113, 50, 245, 0.1),
+    rgba(0, 0, 0, 0.03) 0px 4px 24px,
+    0 12px 40px -16px rgba(113, 50, 245, 0.28);
+}
+.agent-ring {
+  position: relative;
+}
+.agent-ring::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(113, 50, 245, 0.65), rgba(14, 159, 138, 0.5), rgba(61, 174, 255, 0.55));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* -- Console mock details -------------------------------------------- */
+.console-caret::after {
+  content: "|";
+  margin-left: 2px;
+  animation: blink 1.1s steps(2, start) infinite;
+  color: #5eead4;
+}
+.shimmer-bar {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.14) 25%,
+    rgba(255, 255, 255, 0.34) 50%,
+    rgba(255, 255, 255, 0.14) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.4s linear infinite;
+}
+
+/* -- Backdrop textures ----------------------------------------------- */
+.dot-grid {
+  background-image: radial-gradient(rgba(16, 17, 20, 0.1) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.dot-grid-light {
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.16) 1px,
+    transparent 1px
+  );
+  background-size: 24px 24px;
+}
+.agent-grid {
+  background-image:
+    linear-gradient(rgba(113, 50, 245, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(113, 50, 245, 0.08) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(75% 70% at 50% 0%, #000, transparent);
+  -webkit-mask-image: radial-gradient(75% 70% at 50% 0%, #000, transparent);
+}
+
+/* -- Marquee ---------------------------------------------------------- */
+.marquee-mask {
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 8%,
+    #000 92%,
+    transparent
+  );
+}
+
+/* -- Interactive polish (150-350ms) ----------------------------------- */
+.lift {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.35s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+.lift:hover {
+  transform: translateY(-6px);
+}
+.press {
+  transition:
+    transform 0.15s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.press:active {
+  transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
