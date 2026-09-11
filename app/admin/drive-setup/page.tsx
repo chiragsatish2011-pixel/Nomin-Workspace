@@ -2,7 +2,9 @@
 import { AppShell } from "@/components/AppShell";
 import { Badge } from "@/components/Badge";
 import { CheckpointsSheetSetup } from "@/components/CheckpointsSheetSetup";
+import { EnsureDriveFolder } from "@/components/EnsureDriveFolder";
 import { Reveal } from "@/components/Reveal";
+import { DRIVE_FOLDER_NAME } from "@/lib/drive";
 import { requireAdmin } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -21,6 +23,8 @@ export default async function DriveSetupPage() {
   const hasSpreadsheetId = Boolean(
     spreadsheetId && spreadsheetId.trim().length > 0
   );
+  const folderId = process.env.GOOGLE_DRIVE_UPLOAD_FOLDER_ID;
+  const hasFolderId = Boolean(folderId && folderId.trim().length > 0);
 
   const isComplete = hasClientId && hasClientSecret && hasRefreshToken;
 
@@ -149,6 +153,38 @@ export default async function DriveSetupPage() {
                 </a>
               </div>
             )}
+          </Reveal>
+        </div>
+
+        {/* Team folder — this workspace's OWN locked folder */}
+        <div className="mt-10">
+          <Reveal delay={25} className="rounded-2xl border border-hairline bg-canvas p-6 sm:p-8">
+            <div className="flex items-center justify-between gap-4 border-b border-hairline-soft pb-5">
+              <div>
+                <h2 className="font-display text-xl font-bold tracking-tight">
+                  Team Folder
+                </h2>
+                <p className="mt-1 text-xs text-steel">
+                  This workspace&apos;s own locked folder — separate from any
+                  other project folder (e.g. Vaayu) in the same Google account.
+                  Every Files/Projects read and write is pinned inside this one
+                  folder ID, so other folders are never touched.
+                </p>
+              </div>
+              <Badge tone={hasFolderId ? "live" : "phase"}>
+                {hasFolderId ? "ID saved" : "No ID saved"}
+              </Badge>
+            </div>
+            <EnsureDriveFolder defaultName={DRIVE_FOLDER_NAME} />
+            <p className="mt-3 text-xs leading-relaxed text-steel">
+              One click creates (or finds) “{DRIVE_FOLDER_NAME}” in your Drive —
+              re-running never duplicates it. Save the returned ID as{" "}
+              <code className="bg-fog px-1.5 py-0.5 rounded font-mono text-xs">GOOGLE_DRIVE_UPLOAD_FOLDER_ID</code>{" "}
+              in <code className="bg-fog px-1.5 py-0.5 rounded font-mono text-xs">.env.local</code> and in
+              Vercel env vars (all environments), then redeploy. Your other
+              folders keep their own IDs and are unaffected — separation comes
+              from the folder ID, so the same Google OAuth client can be reused.
+            </p>
           </Reveal>
         </div>
 

@@ -32,7 +32,7 @@ console.log("SUCCESS! Received access token.");
 const accessToken = tokenData.access_token;
 
 // 2. Ensure folder
-const folderName = "Nomin-Workspace-Projects";
+const folderName = "Nomin Workspace";
 console.log(`\n2. Checking for '${folderName}' folder in Google Drive...`);
 const q = encodeURIComponent(`mimeType = 'application/vnd.google-apps.folder' and name = '${folderName}' and trashed = false`);
 const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {

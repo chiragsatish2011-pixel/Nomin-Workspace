@@ -23,7 +23,17 @@ export const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
  * Drive backend + Sheets store share one OAuth client and one refresh token.
  */
 export const GOOGLE_SCOPES = `${DRIVE_SCOPE} ${SHEETS_SCOPE}`;
-export const DRIVE_FOLDER_NAME = "Nomin-Workspace-Projects";
+/**
+ * Default name of the team's locked Drive folder.
+ *
+ * Each deployment gets its OWN folder by ID (GOOGLE_DRIVE_UPLOAD_FOLDER_ID):
+ * this Nomin Workspace uses a folder named "Nomin Workspace", completely
+ * separate from any other project folder (e.g. Vaayu) in the same Google
+ * account. Same Google Cloud OAuth client can be reused — separation comes
+ * from the folder ID, and every route pins all access inside that ID, so
+ * the other folder is never touched.
+ */
+export const DRIVE_FOLDER_NAME = "Nomin Workspace";
 
 /** Upload constraints: Google Drive's own real technical ceilings.
  *

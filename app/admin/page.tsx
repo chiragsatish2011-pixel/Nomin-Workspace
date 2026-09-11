@@ -18,7 +18,8 @@ export default async function AdminPage() {
   const isDriveConfigured = Boolean(
     process.env.GOOGLE_CLIENT_ID &&
     process.env.GOOGLE_CLIENT_SECRET &&
-    process.env.GOOGLE_DRIVE_REFRESH_TOKEN
+    process.env.GOOGLE_DRIVE_REFRESH_TOKEN &&
+    process.env.GOOGLE_DRIVE_UPLOAD_FOLDER_ID
   );
 
   const allUsers = await db

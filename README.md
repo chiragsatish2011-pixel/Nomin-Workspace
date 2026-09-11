@@ -38,14 +38,21 @@ Synthesized from `DESIGN-cohere.md`, `DESIGN-minimax.md` and
 
 ## Environment variables
 
-| Name | Used for | Example |
+| Name | Used for | Example / value to put |
 |---|---|---|
 | `DATABASE_URL` | Neon **pooled** Postgres URL (runtime queries + migrations). Must be the pooler host (`…-pooler.…`), never a direct connection — serverless functions would exhaust a normal pool. | `postgresql://USER:PASSWORD@HOST-pooler/DB?sslmode=require` |
 | `NEXTAUTH_SECRET` | Signs JWT sessions (`openssl rand -base64 32`) | any strong random string |
 | `NEXTAUTH_URL` | Public app URL (callbacks/redirects) | `http://localhost:3000` locally, `https://YOUR-APP.vercel.app` in prod |
+| `GOOGLE_CLIENT_ID` | Google Cloud OAuth client (Drive + Sheets). You may **reuse Vaayu's client** — separation comes from the folder/sheet IDs below, so Vaayu is never touched. | from Google Cloud → Credentials |
+| `GOOGLE_CLIENT_SECRET` | Same OAuth client secret | from Google Cloud → Credentials |
+| `GOOGLE_DRIVE_REFRESH_TOKEN` | Owner consent token (mint via **Admin → Drive setup → Authorize with Google**). If Vaayu's token already carries the Drive + Sheets scopes, it can be reused; otherwise re-authorize once. | shown once on screen after consent |
+| `GOOGLE_DRIVE_UPLOAD_FOLDER_ID` | **This workspace's own locked folder** — a Drive folder named **`Nomin Workspace`**, separate from Vaayu's folder. Create it in one click at **Admin → Drive setup → Team Folder**, then save the returned ID. | Drive folder ID (e.g. `1AbC…`) |
+| `GOOGLE_SHEETS_CHECKPOINTS_ID` | **This workspace's own Checkpoints sheet** (spreadsheet titled **`Nomin Checkpoints`**). Create it in one click at **Admin → Drive setup → Checkpoints Sheet**, then save the returned ID. | Spreadsheet ID from the sheet URL |
+| `DAILY_API_KEY` | Daily.co video/voice calls (room creation via `/api/calls/rooms`) | from https://dashboard.daily.co/developers |
 
-That's all three — there are no other variables to set. Every secret comes
-from the environment — there are zero hardcoded secrets in the codebase.
+Separation rule: Vaayu keeps its own folder ID + sheet ID in Vaayu's
+project; Nomin keeps its own IDs here. Never paste Vaayu's folder/sheet ID
+into Nomin's env (or vice versa) — that is the only way the two could mix.
 
 They must be set in Vercel's dashboard (**Project Settings → Environment
 Variables**) separately from any local `.env` file, for **Production**,
@@ -60,6 +67,14 @@ still succeeds without them so CI stays green):
 - `DATABASE_URL is not set. Add it in Vercel's Environment Variables settings for this environment.`
 - `NEXTAUTH_SECRET is not set. Add it in Vercel's Environment Variables settings for this environment.`
 - `NEXTAUTH_URL is not set. Add it in Vercel's Environment Variables settings for this environment.`
+
+Drive/Sheets/Calls variables fail fast the same way, but only at their own
+feature layer (so the rest of the workspace keeps working before Drive is
+configured): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+`GOOGLE_DRIVE_REFRESH_TOKEN` (all Drive/Sheets routes + OAuth),
+`GOOGLE_DRIVE_UPLOAD_FOLDER_ID` (Files/Projects routes only — Checkpoints
+never checks it), `GOOGLE_SHEETS_CHECKPOINTS_ID` (Checkpoints only),
+`DAILY_API_KEY` (calls only).
 
 The `/setup` wizard is the only flow that works without `DATABASE_URL`
 (step 1 collects it); everything else throws the above instead of failing
