@@ -7,14 +7,15 @@
 | `public/nomin-mark.svg` | `components/Wordmark.tsx`, metadata icons, `app/icon.svg` | Transparent SVG recreation of the chameleon mark (violet → teal → sky gradient). Dark-on-white safe. |
 | `public/logo.svg` | Fallback copy of the mark | Same bytes as `nomin-mark.svg`. |
 | `app/icon.svg` | Browser favicon (Next.js App Router) | Same mark. |
-| `public/logo.png` | Unused (legacy path) | Still the old reference PNG — replace or delete. |
+| `public/logo.png` | Deleted (was the legacy Vaayu PNG, unused) | If you get an exact PNG logo later, save it here — see below. |
+| `app/icon.png` + `app/favicon.ico` | Deleted (were Vaayu-logo bytes) | Favicon now resolves to `app/icon.svg` (Nomin mark) + metadata `/nomin-mark.svg`. |
 | `public/backgrounds/nomin-hero-bg.jpg` | `AuthLayout` brand panel | Copy of the reference hero art with a Kraken-purple overlay. Swap with your own 1600px+ art anytime. |
 
 ## Using the exact PNG logo you were given
 
 The mark above is an SVG approximation. To use your exact provided logo:
 
-1. Save it as `public/logo.png` (overwrite the legacy file).
+1. Save it as `public/logo.png` (new file — the old Vaayu PNG was deleted).
 2. In `components/Wordmark.tsx`, change `src="/nomin-mark.svg"` to
    `src="/logo.png"` and set `dims` to match your PNG aspect, e.g.
    `{ w: 224, h: 199 }` for the ~1.124 reference aspect.
