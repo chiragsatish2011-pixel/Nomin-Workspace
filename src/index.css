@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Colors */
+  --kraken-purple: #7132f5;
+  --kraken-purple-dark: #5741d8;
+  --kraken-purple-deep: #5b1ecf;
+  --kraken-purple-subtle: rgba(133,91,251,0.16);
+  --kraken-near-black: #101114;
+  --kraken-cool-gray: #686b82;
+  --kraken-silver-blue: #9497a9;
+  --kraken-white: #ffffff;
+  --kraken-border-gray: #dedee5;
+  --kraken-green: #149e61;
+  --kraken-green-dark: #026b3f;
+  
+  --shadow-subtle: rgba(0,0,0,0.03) 0px 4px 24px;
+  --shadow-micro: rgba(16,24,40,0.04) 0px 1px 4px;
+
+  /* Typography Fallbacks */
+  --font-display: 'IBM Plex Sans', Helvetica, Arial, sans-serif; /* Fallback for Kraken-Brand */
+  --font-ui: 'Inter', Helvetica Neue, Helvetica, Arial, sans-serif; /* Fallback for Kraken-Product */
+}
+
+/* Base resets */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-ui);
+  color: var(--kraken-near-black);
+  background-color: var(--kraken-white);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography Utility Classes */
+.text-display-hero {
+  font-family: var(--font-display);
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1.17;
+  letter-spacing: -1px;
+}
+
+.text-section-heading {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: -0.5px;
+}
+
+.text-sub-heading {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.29;
+  letter-spacing: -0.5px;
+}
+
+.text-feature-title {
+  font-family: var(--font-ui);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.20;
+}
+
+.text-body {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.38;
+}
+
+.text-body-medium {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.38;
+}
+
+.text-caption {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.43;
+}
+
+.text-small {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.33;
+}
+
+.text-micro {
+  font-family: var(--font-ui);
+  font-size: 7px;
+  font-weight: 500;
+  line-height: 1.00;
+  text-transform: uppercase;
+}

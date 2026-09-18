@@ -1,0 +1,22 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.33;
+  padding: 4px 8px;
+}
+
+.badge-success {
+  background-color: rgba(20,158,97,0.16);
+  color: var(--kraken-green-dark);
+  border-radius: 6px;
+}
+
+.badge-neutral {
+  background-color: rgba(104,107,130,0.12);
+  color: #484b5e;
+  border-radius: 8px;
+}
