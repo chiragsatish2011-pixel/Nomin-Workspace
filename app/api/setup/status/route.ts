@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSetupStatus } from "@/lib/setup";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
-/**
- * GET /api/setup/status — booleans only, and therefore safe to expose
- * before auth exists. It reveals whether setup is finished, never any
- * connection string, email or other value.
- */
+/** GET /api/setup/status — booleans only, safe to expose pre-auth. */
 export async function GET() {
   try {
     return NextResponse.json(await getSetupStatus());

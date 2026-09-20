@@ -1,58 +1,53 @@
-#!/usr/bin/env node
 /**
- * One-time first-admin bootstrap — the terminal alternative to /setup.
+ * Seed the first admin account (run once):
  *
  *   DATABASE_URL="postgresql://..." npm run db:seed
- *   # or, with DATABASE_URL in .env.local:
- *   npm run db:seed
+ *   # or with DATABASE_URL in .env.local: npm run db:seed
  *
- * Creates admin@nomin.app with a PLACEHOLDER password, or promotes that
- * account to admin if it already exists. Change the password immediately
- * after signing in, from Admin → your own row.
+ * Creates admin@nomin.com / role "admin" if missing, or updates the
+ * existing row to role "admin" with a fresh hash if present. Password is
+ * bcrypt-hashed (cost 12) before storing — never plaintext, never logged.
+ *
+ * NOTE — placeholder credential: "1234" is intentionally weak, only so the
+ * owner can see the app's inner pages right now. Change it immediately
+ * after signing in, via Admin → Change password on your own row. Login
+ * lowercases emails, so signing in as Admin@nomin.com works.
  */
-import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { neon } from "@neondatabase/serverless";
+import { config as loadDotenv } from "dotenv";
 
-const EMAIL = "admin@nomin.app";
-const PLACEHOLDER_PASSWORD = "nomin1234";
+loadDotenv({ path: ".env.local" });
 
-const url = process.env.DATABASE_URL;
-if (!url) {
-  console.error(
-    "[seed-admin] DATABASE_URL is not set. Pass it inline or add it to .env.local."
+const ADMIN_EMAIL = "admin@nomin.com";
+const ADMIN_PASSWORD = "1234";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl || databaseUrl.trim().length === 0) {
+  throw new Error(
+    "DATABASE_URL is not set. Add it in Vercel's Environment Variables settings for this environment (or .env.local for local runs)."
   );
-  process.exit(1);
 }
 
-const sql = neon(url);
+const sql = neon(databaseUrl);
 
-try {
-  const existing = await sql`SELECT id, role FROM users WHERE email = ${EMAIL} LIMIT 1`;
+const existing =
+  await sql`SELECT id, role FROM users WHERE email = ${ADMIN_EMAIL} LIMIT 1`;
 
-  if (existing.length > 0) {
-    // Don't silently reset a password that may already have been changed —
-    // only make sure the account can actually administer the workspace.
-    if (existing[0].role !== "admin") {
-      await sql`UPDATE users SET role = 'admin' WHERE id = ${existing[0].id}`;
-      console.log(`[seed-admin] promoted existing account to admin (${EMAIL}).`);
-    } else {
-      console.log(`[seed-admin] ${EMAIL} already exists as admin — nothing to do.`);
-    }
-    process.exit(0);
-  }
+const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 12);
 
-  const passwordHash = await bcrypt.hash(PLACEHOLDER_PASSWORD, 12);
-  await sql`
-    INSERT INTO users (email, password_hash, role, display_name)
-    VALUES (${EMAIL}, ${passwordHash}, 'admin', 'Workspace Owner')
-  `;
-
-  console.log(`[seed-admin] created admin ${EMAIL}`);
-  console.log(`[seed-admin] placeholder password: ${PLACEHOLDER_PASSWORD}`);
-  console.log("[seed-admin] CHANGE IT NOW — sign in, then Admin → your row → Change password.");
-} catch (err) {
-  console.error("[seed-admin] failed:", err?.message ?? err);
-  console.error("[seed-admin] Do the tables exist? Run `npm run db:migrate` first.");
-  process.exit(1);
+if (existing.length > 0) {
+  await sql`UPDATE users SET password_hash = ${passwordHash}, role = 'admin' WHERE id = ${existing[0].id}`;
+  console.log(
+    `[seed-admin] updated existing account (${ADMIN_EMAIL}) to role admin`
+  );
+} else {
+  const inserted =
+    await sql`INSERT INTO users (email, password_hash, role) VALUES (${ADMIN_EMAIL}, ${passwordHash}, 'admin') RETURNING id, email`;
+  console.log(
+    `[seed-admin] created admin account (${inserted[0].email}) with id ${inserted[0].id}`
+  );
 }
+console.log(
+  "[seed-admin] done — change this placeholder password immediately via Admin → Change password."
+);

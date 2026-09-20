@@ -1,35 +1,28 @@
-import { BoxIcon, ChatIcon, FlagIcon, FolderIcon } from "@/components/icons";
-
-/**
- * The section registry — one source of truth for the workspace's top-level
- * areas. Navigation, the dashboard grid and each section's header all read
- * from this list, so adding a section means adding one entry here rather
- * than editing four files.
- *
- * Each section owns exactly ONE identity color, reserved for that section:
- * never reuse them for generic buttons, links or text.
- */
+import {
+  BoxIcon,
+  CallIcon,
+  ChatIcon,
+  FlagIcon,
+  FolderIcon,
+} from "@/components/icons";
 
 export type SectionKey = "checkpoints" | "files" | "projects" | "chat";
-
-export type SectionStatus = "live" | "shell";
 
 export interface Section {
   key: SectionKey;
   href: string;
   label: string;
+  wordmark: string;
   tagline: string;
   blurb: string;
-  /**
-   * "live" — backed end to end, real data.
-   * "shell" — routed and designed, with the data layer still to come.
-   * The UI states this plainly rather than implying a section works.
-   */
-  status: SectionStatus;
-  /** Identity color, reserved for this section alone. */
+  phase: string;
+  badge: { text: string; tone: "new" | "beta" };
+  /** Vibrant identity gradient — reserved ONLY for this section. */
+  gradient: string;
+  /** Flat accent for dots, links, soft chips. */
   accent: string;
-  /** Tint used behind icons and chips for this section. */
-  accentSoft: string;
+  accentText: string;
+  accentSoftBg: string;
   icon: (props: React.SVGProps<SVGSVGElement>) => React.ReactNode;
   planned: string[];
 }
@@ -39,69 +32,105 @@ export const SECTIONS: Section[] = [
     key: "checkpoints",
     href: "/checkpoints",
     label: "Checkpoints",
-    tagline: "Track team progress on one timeline.",
-    blurb:
-      "Post progress notes and milestone updates the whole team can follow.",
-    status: "live",
+    wordmark: "Checkpoints",
+    tagline: "Track team timeline & progress.",
+    blurb: "Add progress notes and milestone updates to keep the team aligned.",
+    phase: "Live · Active timeline",
+    badge: { text: "Live", tone: "new" },
+    gradient: "from-[#149e61] via-[#0c8351] to-[#026b3f]",
     accent: "#149e61",
-    accentSoft: "#e7f7ef",
+    accentText: "text-teal-deep",
+    accentSoftBg: "bg-[#e2f5ec]",
     icon: (p) => <FlagIcon {...p} />,
     planned: [
-      "Newest-first timeline, so recent progress is always on top",
-      "Visible to the whole workspace, with authors and timestamps",
-      "Authors edit and delete their own notes; admins can moderate any",
+      "Add notes for timeline milestones the whole team can follow",
+      "Visible to the whole team, with authors and timestamps",
+      "Newest-first timeline so recent progress is always on top",
     ],
   },
   {
     key: "files",
     href: "/files",
     label: "Files",
+    wordmark: "Files",
     tagline: "Every team file, one browser.",
     blurb:
-      "Browse, upload and organize shared team storage from inside the workspace.",
-    status: "shell",
-    accent: "#2563eb",
-    accentSoft: "#e5edff",
+      "Browse, upload and manage the shared drive from inside your workspace.",
+    phase: "Live · Team browser",
+    badge: { text: "Live", tone: "new" },
+    gradient:
+      "from-[#1f4fc4] via-[#2f6bf0] to-[#4a9ce8]",
+    accent: "#2f6bf0",
+    accentText: "text-azure-deep",
+    accentSoftBg: "bg-azure-soft",
     icon: (p) => <FolderIcon {...p} />,
     planned: [
-      "Nested folders backed by the files table already in the schema",
-      "Upload with progress, resumable for large files",
-      "Move, rename, download and trash, with per-file permissions",
+      "Shared team storage — your files, always in sync",
+      "File browser: browse, upload, download and organize in one place",
+      "Automatic compression on upload to save space",
     ],
   },
   {
     key: "projects",
     href: "/projects",
     label: "Projects",
-    tagline: "Ship work as packages, not threads.",
+    wordmark: "Projects",
+    tagline: "Ship code as packages, not threads.",
     blurb:
-      "Publish described project bundles the rest of the team can preview and pull.",
-    status: "shell",
-    accent: "#c2410c",
-    accentSoft: "#fdeee5",
+      "Publish described, previewable project bundles backed by secure team storage.",
+    phase: "Live · Team storage",
+    badge: { text: "Live", tone: "new" },
+    gradient:
+      "from-[#b53a27] via-[#e0523c] to-[#c44ec9]",
+    accent: "#e0523c",
+    accentText: "text-coral-deep",
+    accentSoftBg: "bg-[#fbeae6]",
     icon: (p) => <BoxIcon {...p} />,
     planned: [
-      "Title, description and a preview image per project",
-      "Interactive cards with a lightbox and one-click download",
-      "Backed by the projects table, scoped per workspace member",
+      "Upload form: title, description, preview image + compressed bundle",
+      "Interactive cards with live image lightbox and one-click download",
+      "Cloud-backed storage, always available to the team",
     ],
   },
   {
     key: "chat",
     href: "/chat",
     label: "Chat",
+    wordmark: "Chat",
     tagline: "Talk where the work lives.",
-    blurb: "Direct and group conversations with full, persistent history.",
-    status: "shell",
+    blurb: "Real-time channels per project with persistent history.",
+    phase: "Live · Realtime chat",
+    badge: { text: "Live", tone: "new" },
+    gradient:
+      "from-[#5b1ecf] via-[#7132f5] to-[#8b5bfb]",
     accent: "#7132f5",
-    accentSoft: "#f0e9ff",
+    accentText: "text-brand-dark",
+    accentSoftBg: "bg-[#ece2ff]",
     icon: (p) => <ChatIcon {...p} />,
     planned: [
-      "Direct and group conversations, access-controlled per participant",
-      "Server-sent events for delivery, replacing any polling loop",
-      "Unread watermarks per participant, already modeled in the schema",
+      "Live channels with instant delivery",
+      "Full message history — nothing important scrolls away",
+      "One channel per project, plus team-wide announcements",
     ],
   },
+  // Calls is temporarily disabled (Daily.co now requires a payment method for every room).
+  // Kept in git history; re-add by restoring this entry. /calls shows a parked notice.
+  // {
+  //   key: "calls",
+  //   href: "/calls",
+  //   label: "Calls",
+  //   wordmark: "Calls",
+  //   tagline: "Paused — payment wall, coming back via free provider.",
+  //   blurb: "Temporarily disabled. Was: Voice/video via Daily.co SFU.",
+  //   phase: "Paused",
+  //   badge: { text: "Paused", tone: "beta" },
+  //   gradient: "from-[#026b3f] via-[#149e61] to-[#4a9ce8]",
+  //   accent: "#149e61",
+  //   accentText: "text-teal-deep",
+  //   accentSoftBg: "bg-[#dcf5ee]",
+  //   icon: (p) => <CallIcon {...p} />,
+  //   planned: ["Paused — see /calls notice"],
+  // },
 ];
 
 export const sectionByKey = (key: SectionKey): Section =>

@@ -11,10 +11,9 @@ import {
 import { SetupBanner } from "@/components/SetupBanner";
 
 /**
- * Resolve the post-login target from ?callbackUrl= (route guards put it
- * there when they bounce a signed-out visitor). Absolute and
- * protocol-relative URLs are rejected, so a crafted link can never send a
- * fresh login to an external site.
+ * Same-origin callback target from ?callbackUrl= (route guards land here
+ * after redirecting). Rejects absolute and protocol-relative URLs so a
+ * crafted link can never bounce a fresh login to an external site.
  */
 function safeCallbackTarget(): string {
   if (typeof window === "undefined") return "/";
@@ -28,8 +27,8 @@ export default function SignInPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   // idle → submitting (checking credentials) → navigating (dashboard
-  // loading). The button stays busy through navigation, so the handoff
-  // never looks stuck on an idle form.
+  // loading). The button stays busy through navigation so the handoff to
+  // the dashboard never looks stuck on an idle form.
   const [phase, setPhase] = useState<"idle" | "submitting" | "navigating">(
     "idle"
   );
@@ -46,10 +45,9 @@ export default function SignInPage() {
         redirect: false,
       });
       if (res?.error) {
-        // CredentialsSignin means wrong email or password. Any other code
-        // is the server reporting that auth itself is broken (the
-        // ServiceUnavailable thrown in lib/auth.ts on a database outage) —
-        // never show that as "wrong password".
+        // CredentialsSignin = wrong email/password. Any other code is the
+        // server reporting auth itself is broken (e.g. ServiceUnavailable
+        // from a database outage) — never show that as "wrong password".
         setError(
           res.error === "CredentialsSignin"
             ? "Invalid email or password."
@@ -57,9 +55,12 @@ export default function SignInPage() {
         );
         setPhase("idle");
       } else if (res?.ok) {
-        // A full browser navigation rather than router.push: it guarantees
-        // a clean handoff with fresh server state, so no in-flight router
-        // cache can stall on the way to the dashboard.
+        // Login goes straight to the dashboard — only admins manage
+        // credentials, so there is no password step after sign-in.
+        // Full browser navigation (not router.push): guarantees a clean
+        // handoff with fresh server state, so no in-flight router cache
+        // can stall on the way to the dashboard. The button stays busy
+        // until the browser actually leaves this page.
         setPhase("navigating");
         window.location.assign(safeCallbackTarget());
       } else {
@@ -78,7 +79,7 @@ export default function SignInPage() {
       title="Welcome back."
       subtitle="Pick up exactly where your team left off."
       footer={
-        <span className="text-micro text-stone">
+        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-stone">
           Private workspace · accounts are created by your admin
         </span>
       }
@@ -115,7 +116,7 @@ export default function SignInPage() {
         <div className="pt-1">
           <AuthSubmit loading={busy}>
             {phase === "navigating"
-              ? "Opening workspace…"
+              ? "Opening dashboard…"
               : phase === "submitting"
                 ? "Signing in…"
                 : "Sign in"}

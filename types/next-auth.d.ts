@@ -1,16 +1,13 @@
+import "next-auth";
 import type { DefaultSession } from "next-auth";
 
-/**
- * Widen NextAuth's types with the workspace fields the JWT and session
- * callbacks in `lib/auth.ts` carry. Without this, `session.user.role` is a
- * type error everywhere the route guards use it.
- */
 declare module "next-auth" {
   interface User {
     id: string;
-    email: string;
     role: "admin" | "member";
     displayName?: string | null;
+    avatarDriveId?: string | null;
+    hasCompletedOnboarding?: boolean;
     department?: string | null;
     jobTitle?: string | null;
   }
@@ -20,6 +17,8 @@ declare module "next-auth" {
       id: string;
       role: "admin" | "member";
       displayName?: string | null;
+      avatarDriveId?: string | null;
+      hasCompletedOnboarding?: boolean;
       department?: string | null;
       jobTitle?: string | null;
     } & DefaultSession["user"];
@@ -31,6 +30,8 @@ declare module "next-auth/jwt" {
     id?: string;
     role?: "admin" | "member";
     displayName?: string | null;
+    avatarDriveId?: string | null;
+    hasCompletedOnboarding?: boolean;
     department?: string | null;
     jobTitle?: string | null;
   }

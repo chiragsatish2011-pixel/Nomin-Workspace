@@ -1,49 +1,36 @@
-import "server-only";
-
 import { eq } from "drizzle-orm";
 import { getServerSession } from "next-auth";
-import { redirect, unstable_rethrow } from "next/navigation";
+import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { authOptions } from "@/lib/auth";
 
 /**
- * Route guards. Every protected page or route calls one of these instead of
- * reading getServerSession directly.
+ * Server-side route guards (SERVER ONLY — uses next/headers + redirect).
  *
- * All four re-read the user row on every request rather than trusting the
- * JWT alone, so a deleted or demoted account loses access immediately even
- * while it still holds a valid, unexpired token.
+ * Every protected page calls one of these instead of raw getServerSession:
  *
- * Pages redirect; API routes return null so the handler can answer JSON:
- *
- * - requireActiveSession() — signed in AND the account still exists, else → /signin
- * - requireAdmin()         — the above AND role === "admin", else → /
- * - requireApiSession()    — same check, returns null instead of redirecting
- * - requireApiAdmin()      — same, admin only
+ * - requireActiveSession(): signed in AND account still exists.
+ *   Otherwise → /signin. Users go straight from login to the dashboard —
+ *   there is no password step: only admins control credentials (/admin).
+ * - requireAdmin(): requireActiveSession() + role === "admin", else → /.
  */
 
 export interface ActiveUser {
   id: string;
   email: string;
   role: "admin" | "member";
-  displayName: string | null;
-  department: string | null;
-  jobTitle: string | null;
+  displayName?: string | null;
+  avatarDriveId?: string | null;
+  hasCompletedOnboarding?: boolean;
+  department?: string | null;
+  jobTitle?: string | null;
 }
 
-const USER_COLUMNS = {
-  id: users.id,
-  email: users.email,
-  role: users.role,
-  displayName: users.displayName,
-  department: users.department,
-  jobTitle: users.jobTitle,
-};
-
 /**
- * Race a promise against a timeout, so a hung database fails closed
- * (redirect to /signin) instead of hanging the navigation with no feedback.
+ * Race a promise against a timeout. Used by the guards so a hung database
+ * fails closed (redirect to /signin) instead of hanging the navigation
+ * forever with no feedback.
  */
 function withGuardTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -64,44 +51,91 @@ function withGuardTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-async function loadSessionUser(): Promise<ActiveUser | null> {
+export async function requireActiveSession(): Promise<ActiveUser> {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return null;
+  if (!session?.user?.id) redirect("/signin");
 
-  const rows = await withGuardTimeout(
-    db
-      .select(USER_COLUMNS)
-      .from(users)
-      .where(eq(users.id, session.user.id))
-      .limit(1),
-    15000
-  );
-  const user = rows[0];
-  if (!user) return null;
+  let rows:
+    | Array<{
+        id: string;
+        email: string;
+        role: "admin" | "member";
+        displayName?: string | null;
+        avatarDriveId?: string | null;
+        hasCompletedOnboarding?: boolean | null;
+        department?: string | null;
+        jobTitle?: string | null;
+      }>
+    | undefined;
+  try {
+    rows = (await withGuardTimeout(
+      db
+        .select({
+          id: users.id,
+          email: users.email,
+          role: users.role,
+          displayName: users.displayName,
+          avatarDriveId: users.avatarDriveId,
+          hasCompletedOnboarding: users.hasCompletedOnboarding,
+          department: users.department,
+          jobTitle: users.jobTitle,
+        })
+        .from(users)
+        .where(eq(users.id, session.user.id))
+        .limit(1),
+      15000
+    )) as typeof rows;
+  } catch (err) {
+    const msg = String((err as Error)?.message ?? err);
+    if (
+      msg.includes("column") &&
+      (msg.includes("display_name") ||
+        msg.includes("avatar") ||
+        msg.includes("has_completed") ||
+        msg.includes("department") ||
+        msg.includes("job_title"))
+    ) {
+      console.warn("[session] fallback to minimal columns — run migration 0004");
+      try {
+        const fallbackRows = (await withGuardTimeout(
+          db
+            .select({ id: users.id, email: users.email, role: users.role })
+            .from(users)
+            .where(eq(users.id, session.user.id))
+            .limit(1),
+          15000
+        )) as unknown as Array<{ id: string; email: string; role: "admin" | "member" }>;
+        // Patch missing fields
+        rows = fallbackRows.map((r) => ({
+          ...r,
+          displayName: null,
+          avatarDriveId: null,
+          hasCompletedOnboarding: false,
+          department: null,
+          jobTitle: null,
+        })) as typeof rows;
+      } catch (innerErr) {
+        console.error("[session] fallback also failed:", innerErr);
+        redirect("/signin");
+      }
+    } else {
+      console.error("[session] failed to load user for guard:", err);
+      redirect("/signin");
+    }
+  }
+
+  const user = rows?.[0];
+  if (!user) redirect("/signin");
   return {
     id: user.id,
     email: user.email,
     role: user.role,
-    displayName: user.displayName ?? null,
-    department: user.department ?? null,
-    jobTitle: user.jobTitle ?? null,
+    displayName: (user as { displayName?: string | null }).displayName ?? null,
+    avatarDriveId: (user as { avatarDriveId?: string | null }).avatarDriveId ?? null,
+    hasCompletedOnboarding: Boolean((user as { hasCompletedOnboarding?: boolean | null }).hasCompletedOnboarding),
+    department: (user as { department?: string | null }).department ?? null,
+    jobTitle: (user as { jobTitle?: string | null }).jobTitle ?? null,
   };
-}
-
-export async function requireActiveSession(): Promise<ActiveUser> {
-  let user: ActiveUser | null = null;
-  try {
-    user = await loadSessionUser();
-  } catch (err) {
-    // redirect(), notFound() and the dynamic-rendering bailout all signal
-    // themselves by throwing. Catching those would turn a redirect into a
-    // silent failure, so hand them straight back to Next.
-    unstable_rethrow(err);
-    console.error("[session] failed to load user for guard:", err);
-    redirect("/signin");
-  }
-  if (!user) redirect("/signin");
-  return user;
 }
 
 export async function requireAdmin(): Promise<ActiveUser> {
@@ -110,11 +144,75 @@ export async function requireAdmin(): Promise<ActiveUser> {
   return user;
 }
 
+/**
+ * API-route session helpers (SERVER ONLY). Unlike the page guards above,
+ * these return `null` instead of redirecting, so routes can answer 401/403
+ * JSON. Always re-reads the user row — deleted accounts lose access
+ * immediately, even with a live JWT.
+ */
 export async function requireApiSession(): Promise<ActiveUser | null> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return null;
   try {
-    return await loadSessionUser();
+    const rows = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        role: users.role,
+        displayName: users.displayName,
+        avatarDriveId: users.avatarDriveId,
+        hasCompletedOnboarding: users.hasCompletedOnboarding,
+        department: users.department,
+        jobTitle: users.jobTitle,
+      })
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .limit(1);
+    const user = rows[0];
+    if (!user) return null;
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      displayName: user.displayName ?? null,
+      avatarDriveId: user.avatarDriveId ?? null,
+      hasCompletedOnboarding: Boolean(user.hasCompletedOnboarding),
+      department: user.department ?? null,
+      jobTitle: user.jobTitle ?? null,
+    };
   } catch (err) {
-    unstable_rethrow(err);
+    const msg = String((err as Error)?.message ?? err);
+    if (
+      msg.includes("column") &&
+      (msg.includes("display_name") ||
+        msg.includes("avatar") ||
+        msg.includes("has_completed") ||
+        msg.includes("department") ||
+        msg.includes("job_title"))
+    ) {
+      console.warn("[session] api fallback to minimal columns — run migration 0004/0005");
+      try {
+        const rows = await db
+          .select({ id: users.id, email: users.email, role: users.role })
+          .from(users)
+          .where(eq(users.id, session.user.id))
+          .limit(1);
+        const user = rows[0] as unknown as { id: string; email: string; role: "admin" | "member" };
+        if (!user) return null;
+        return {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          displayName: null,
+          avatarDriveId: null,
+          hasCompletedOnboarding: false,
+          department: null,
+          jobTitle: null,
+        };
+      } catch {
+        return null;
+      }
+    }
     console.error("[session] api guard DB error:", err);
     return null;
   }

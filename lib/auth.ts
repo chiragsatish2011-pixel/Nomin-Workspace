@@ -12,27 +12,27 @@ import { requireNextAuthSecret, requireNextAuthUrl } from "@/lib/env";
  * Fail fast if auth env is missing (except during `next build`, where a
  * placeholder keeps route collection working). Without this, a missing
  * NEXTAUTH_SECRET / NEXTAUTH_URL surfaces later as a generic 500 or a
- * confusing JWT error.
+ * confusing JWT error — this makes it impossible to miss.
  *
  * NOTE: /setup never imports this module, so the first-run wizard still
- * works before these variables are set.
+ * works before these vars are set.
  */
 const nextAuthSecret = requireNextAuthSecret();
 // Validated for its side effect (throws if missing) — NextAuth reads
-// NEXTAUTH_URL from process.env itself.
+// NEXTAUTH_URL from process.env internally.
 requireNextAuthUrl();
 
 /**
  * NextAuth configuration — Credentials provider (email + password).
  *
- * - JWT session strategy; the secret comes from NEXTAUTH_SECRET, never
- *   hardcoded.
+ * - JWT session strategy; secret comes from NEXTAUTH_SECRET (never hardcoded).
  * - Passwords are verified with bcrypt against `users.password_hash`.
- *   Plaintext is never stored or logged. Only admins set passwords (via
- *   /admin) — there is no self-service password UI.
- * - The JWT and session carry the role, so admin routes stay gated.
- * - The session cookie is httpOnly, and Secure in production.
- * - Stateless: each authorize() call does one short lookup and returns.
+ *   Plaintext passwords are never stored or logged. Only admins set
+ *   passwords (via /admin) — there is no self-service password UI.
+ * - The JWT/session carry the role so admin routes stay gated.
+ * - Session cookie is httpOnly and `secure: true` in production (Vercel = HTTPS).
+ * - Stateless: each authorize() call does one short DB lookup and returns.
+ *   No in-memory stores, no background work — safe for Vercel serverless.
  */
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
@@ -48,23 +48,52 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
         const email = credentials.email.toLowerCase().trim();
-        if (!email) return null;
+        if (!email || !credentials.password) return null;
 
         try {
-          const rows = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, email))
-            .limit(1);
-          const user = rows[0];
-
-          // Both branches below return null, so the sign-in form cannot
-          // tell "no such account" from "wrong password" — no account
-          // enumeration. The distinction stays in the server log.
+          // Robust fetch: if new profile columns haven't been migrated yet
+          // (e.g. preview deploy behind DB), fall back to minimal columns so
+          // login still works — new fields become available after migration.
+          let user: typeof users.$inferSelect | undefined;
+          try {
+            const rows = await db
+              .select()
+              .from(users)
+              .where(eq(users.email, email))
+              .limit(1);
+            user = rows[0];
+          } catch (err) {
+          const msg = String((err as Error)?.message ?? err);
+          if (msg.includes("column") && (msg.includes("display_name") || msg.includes("avatar") || msg.includes("has_completed") || msg.includes("department") || msg.includes("job_title"))) {
+              console.warn(`[auth][authorize] fallback to minimal columns for (${email}) — run migration 0004`);
+              const rows = await db
+                .select({
+                  id: users.id,
+                  email: users.email,
+                  passwordHash: users.passwordHash,
+                  role: users.role,
+                })
+                .from(users)
+                .where(eq(users.email, email))
+                .limit(1);
+              const fallback = rows[0] as unknown as typeof users.$inferSelect;
+              user = fallback
+                ? {
+                    ...fallback,
+                    displayName: null,
+                    avatarDriveId: null,
+                    avatarFileName: null,
+                    hasCompletedOnboarding: false,
+                    department: null,
+                    jobTitle: null,
+                  } as typeof users.$inferSelect
+                : undefined;
+            } else {
+              throw err;
+            }
+          }
           if (!user) {
-            console.error(
-              `[auth][authorize] login failed: unknown email (${email})`
-            );
+            console.error(`[auth][authorize] login failed: unknown email (${email})`);
             return null;
           }
 
@@ -73,9 +102,7 @@ export const authOptions: NextAuthOptions = {
             user.passwordHash
           );
           if (!ok) {
-            console.error(
-              `[auth][authorize] login failed: wrong password (${email})`
-            );
+            console.error(`[auth][authorize] login failed: wrong password (${email})`);
             return null;
           }
 
@@ -84,15 +111,18 @@ export const authOptions: NextAuthOptions = {
             id: user.id,
             email: user.email,
             role: user.role,
-            displayName: user.displayName,
-            department: user.department,
-            jobTitle: user.jobTitle,
+            displayName: (user as { displayName?: string | null }).displayName ?? null,
+            avatarDriveId: (user as { avatarDriveId?: string | null }).avatarDriveId ?? null,
+            hasCompletedOnboarding: Boolean((user as { hasCompletedOnboarding?: boolean }).hasCompletedOnboarding),
+            department: (user as { department?: string | null }).department ?? null,
+            jobTitle: (user as { jobTitle?: string | null }).jobTitle ?? null,
           };
         } catch (err) {
-          // Infrastructure failure (database or env down) — NOT bad
-          // credentials. Re-throw an opaque code so the sign-in UI can tell
-          // "server broken" apart from "wrong email/password". Details stay
-          // in the server log.
+          // Infrastructure failure (DB/env down) — NOT bad credentials.
+          // Re-throw an opaque code so the sign-in UI can tell "server
+          // broken" apart from "wrong email/password" (both unknown-email
+          // and wrong-password above return null → CredentialsSignin, so
+          // no account enumeration). Full details stay in server logs.
           console.error(`[auth][authorize] login error for (${email}):`, err);
           throw new Error("ServiceUnavailable");
         }
@@ -104,19 +134,23 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
-        token.displayName = user.displayName ?? null;
-        token.department = user.department ?? null;
-        token.jobTitle = user.jobTitle ?? null;
+        token.displayName = (user as { displayName?: string | null }).displayName ?? null;
+        token.avatarDriveId = (user as { avatarDriveId?: string | null }).avatarDriveId ?? null;
+        token.hasCompletedOnboarding = Boolean((user as { hasCompletedOnboarding?: boolean }).hasCompletedOnboarding);
+        token.department = (user as { department?: string | null }).department ?? null;
+        token.jobTitle = (user as { jobTitle?: string | null }).jobTitle ?? null;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id ?? token.sub ?? "";
-        session.user.role = token.role ?? "member";
-        session.user.displayName = token.displayName ?? null;
-        session.user.department = token.department ?? null;
-        session.user.jobTitle = token.jobTitle ?? null;
+        session.user.id = (token.id as string) ?? token.sub ?? "";
+        session.user.role = (token.role as "admin" | "member") ?? "member";
+        session.user.displayName = (token.displayName as string | null) ?? null;
+        session.user.avatarDriveId = (token.avatarDriveId as string | null) ?? null;
+        session.user.hasCompletedOnboarding = Boolean(token.hasCompletedOnboarding);
+        session.user.department = (token.department as string | null) ?? null;
+        session.user.jobTitle = (token.jobTitle as string | null) ?? null;
       }
       return session;
     },
@@ -130,8 +164,8 @@ export const authOptions: NextAuthOptions = {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        // Production is served over HTTPS, so require Secure cookies there.
-        // Local dev runs over HTTP, where Secure must stay off.
+        // Vercel serves HTTPS, so require Secure cookies in production.
+        // Local dev runs over HTTP, so Secure must stay off there.
         secure: process.env.NODE_ENV === "production",
       },
     },

@@ -5,16 +5,15 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { getSetupStatus } from "@/lib/setup";
 
-export const runtime = "nodejs";
-
 /**
- * POST /api/setup/owner { email, password } — create the FIRST account, as
- * an admin, with a password the owner chooses.
+ * POST /api/setup/owner { email, password } — create the FIRST account as
+ * admin (owner chose the password directly).
  *
- * ONE-TIME SETUP GATE — this is NOT a public sign-up path. It refuses once
- * ANY user exists, so it can never hijack a live workspace or be used as
- * open registration. After this, every further account is created by an
- * admin at /admin.
+ * ONE-TIME SETUP GATE — this is NOT a public sign-up path. It refuses when
+ * ANY user already exists (COUNT(*) > 0 via getSetupStatus().hasUsers), so
+ * it can never hijack a live workspace or become open registration. After
+ * this, all further accounts are created by admins via /admin — there is no
+ * public registration.
  */
 export async function POST(req: Request) {
   let body: unknown;
@@ -27,7 +26,8 @@ export async function POST(req: Request) {
     email?: unknown;
     password?: unknown;
   };
-  const email = typeof rawEmail === "string" ? rawEmail.toLowerCase().trim() : "";
+  const email =
+    typeof rawEmail === "string" ? rawEmail.toLowerCase().trim() : "";
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json(
@@ -46,18 +46,19 @@ export async function POST(req: Request) {
     const status = await getSetupStatus();
     if (!status.reachable) {
       return NextResponse.json(
-        { error: "The database isn't reachable. Complete steps 1–2 first." },
+        { error: "Database isn't reachable. Complete steps 1–2 first." },
         { status: 503 }
       );
     }
     if (!status.tables) {
       return NextResponse.json(
-        { error: "The tables don't exist yet. Run step 2 first." },
+        { error: "Tables don't exist yet. Run step 2 first." },
         { status: 409 }
       );
     }
-    // Self-disable: any existing user locks the wizard permanently.
-    if (status.hasUsers || status.admin) {
+    // Self-disable: ANY existing user locks the wizard permanently.
+    const alreadySetup = status.hasUsers || status.admin;
+    if (alreadySetup) {
       return NextResponse.json(
         { error: "An owner already exists. Sign in instead." },
         { status: 403 }

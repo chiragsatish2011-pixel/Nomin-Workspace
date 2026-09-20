@@ -4,39 +4,35 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 /**
- * Shown above the sign-in form when the workspace has no accounts yet —
- * otherwise a fresh deployment looks broken, with a login form and no way
- * in. It disappears the moment the first account exists.
- *
- * The status endpoint returns booleans only, so this is safe pre-auth.
+ * Banner on the auth pages when the workspace isn't set up yet —
+ * points the owner at /setup instead of failing cryptically.
  */
 export function SetupBanner() {
-  const [needsSetup, setNeedsSetup] = useState(false);
+  const [needed, setNeeded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/setup/status")
+    fetch("/api/setup/status", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((s) => {
-        if (!cancelled && s && s.reachable && !s.hasUsers) setNeedsSetup(true);
+      .then((s: { reachable?: boolean; tables?: boolean; admin?: boolean } | null) => {
+        if (!cancelled && s && (!s.reachable || !s.tables || !s.admin)) {
+          setNeeded(true);
+        }
       })
-      // A failed probe means we don't know — stay quiet rather than show a
-      // misleading "set up your workspace" prompt on a working install.
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, []);
 
-  if (!needsSetup) return null;
-
+  if (!needed) return null;
   return (
-    <div className="rounded-xl bg-purple-soft px-4 py-3 text-[13px] text-purple-deep">
-      This workspace has no accounts yet.{" "}
-      <Link href="/setup" className="font-semibold underline underline-offset-2">
-        Run the setup wizard
+    <p className="animate-fade-in rounded-lg border border-azure-deep/30 bg-azure-soft px-3.5 py-2.5 text-sm text-azure-deep">
+      This workspace isn&apos;t set up yet.{" "}
+      <Link href="/setup" className="font-semibold underline underline-offset-4">
+        Finish setup
       </Link>{" "}
-      to create the first one.
-    </div>
+      to create the owner account.
+    </p>
   );
 }

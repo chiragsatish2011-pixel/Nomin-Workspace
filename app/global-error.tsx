@@ -2,11 +2,6 @@
 
 import { useEffect } from "react";
 
-/**
- * The last-resort boundary, for a failure in the root layout itself. It
- * must render its own <html> and <body>, and it cannot rely on the app's
- * fonts or tokens — the layout that provides them is what failed.
- */
 export default function GlobalError({
   error,
   reset,
@@ -15,48 +10,44 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[app/global-error]", error);
+    console.error("[global-error]", error);
   }, [error]);
 
   return (
     <html lang="en">
-      <body
-        style={{
-          display: "flex",
-          minHeight: "100vh",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "16px",
-          padding: "24px",
-          textAlign: "center",
-          fontFamily:
-            "ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif",
-          color: "#101114",
-          background: "#ffffff",
-        }}
-      >
-        <h1 style={{ fontSize: "22px", fontWeight: 700, margin: 0 }}>
-          Nomin Workspace couldn&apos;t start.
-        </h1>
-        <p style={{ maxWidth: "380px", color: "#686b82", margin: 0 }}>
-          A failure in the root layout stopped the app from rendering. The
-          details are in the server logs.
-        </p>
-        <button
-          onClick={reset}
-          style={{
-            borderRadius: "999px",
-            border: "none",
-            background: "#7132f5",
-            color: "#fff",
-            padding: "10px 20px",
-            fontSize: "14px",
-            cursor: "pointer",
-          }}
-        >
-          Try again
-        </button>
+      <body className="bg-[#1a0b3d] text-white antialiased">
+        <div className="grid min-h-screen place-items-center bg-[#1a0b3d] px-6 py-16">
+          <div className="w-full max-w-md text-center">
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-white/10 text-white">
+              <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 9v4" />
+                <path d="M12 17h.01" />
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 01.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            </div>
+            <h1 className="mt-4 text-2xl font-bold tracking-tight">This page couldn’t load</h1>
+            <p className="mt-2 text-sm leading-relaxed text-white/70">Reload to try again, or go back.</p>
+            <div className="mt-6 flex justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => reset()}
+                className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black hover:bg-white/90"
+              >
+                Reload
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.history.length > 1) window.history.back();
+                  else window.location.assign("/");
+                }}
+                className="rounded-full border border-white/20 bg-transparent px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        </div>
       </body>
     </html>
   );

@@ -3,81 +3,94 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * NOMIN DESIGN SYSTEM
- * ───────────────────────────────────────────────────────────────
- * The palette and type pairing are Nomin's own — carried over from the
- * original design system, not from any other workspace:
- *
- *   Identity ....... Purple #7132f5 for primary actions and brand marks.
- *   Type ........... IBM Plex Sans display + Inter for UI and body,
- *                    with a mono face reserved for micro-labels.
- *   Surfaces ....... White canvas, hairline borders, flat panels,
- *                    shadows only where elevation carries meaning.
- *   Section colors . Each workspace section owns ONE identity color,
- *                    tuned around the purple so the set reads as a family:
- *                    Checkpoints=green · Files=blue · Projects=orange ·
- *                    Chat=purple. Never use these for generic UI.
- *
- * Tokens are declared once here and consumed as Tailwind utilities
- * (bg-canvas, text-ink, border-hairline, …). Dark mode redefines the same
- * names, so no component needs a dark: variant for color alone.
+ * NOMIN DESIGN SYSTEM — MiniMax theme
+ * ─────────────────────────────────────────────────────────────
+ * Canvas ........... Stark white surfaces, pure black typography.
+ * Brand ............ MiniMax Black (#0a0a0a) owns primary CTAs and deep bands.
+ *                    Vibrant gradients and bold accent colors (coral, magenta, blue).
+ * Type ............. DM Sans across all surfaces.
+ * Radius ........... Full pill-shaped buttons. Cards cap at 24px.
  */
 
 @theme inline {
-  --font-sans: var(--font-inter);
-  --font-display: var(--font-plex);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-dm-sans);
+  --font-display: var(--font-dm-sans);
+  --font-mono: var(--font-plex-mono);
 }
 
 @theme {
-  /* Brand */
-  --color-purple: #7132f5;
-  --color-purple-dark: #5741d8;
-  --color-purple-deep: #5b1ecf;
-  --color-purple-soft: #f0e9ff;
+  /* ── Brand: Kraken Purple scale (the ONLY purples in the system) ── */
+  --color-brand: #0a0a0a;
+  --color-brand-dark: #000000;
+  --color-brand-deep: #000000;
+  --color-brand-subtle: rgba(10, 10, 10, 0.08);
 
-  /* Ink & neutrals */
-  --color-ink: #101114;
-  --color-charcoal: #22242c;
-  --color-slate: #45495e;
-  --color-steel: #686b82;
-  --color-stone: #9497a9;
-  --color-muted: #b4b6c4;
+  /* Ink & soft grey neutrals */
+  --color-ink: #0a0a0a;
+  --color-charcoal: #222222;
+  --color-slate: #45515e;
+  --color-steel: #5f5f5f;
+  --color-stone: #8e8e93;
+  --color-muted: #a8aab2;
   --color-canvas: #ffffff;
-  --color-fog: #f8f8fb;
-  --color-mist: #f2f2f6;
-  --color-hairline: #dedee5;
-  --color-hairline-soft: #e9e9ef;
+  --color-fog: #f7f8fa;
+  --color-mist: #f2f3f5;
+  --color-hairline: #e5e7eb;
+  --color-hairline-soft: #eaecf0;
 
-  /* Section identity colors (never for generic buttons or text) */
-  --color-emerald: #149e61;
-  --color-emerald-deep: #026b3f;
-  --color-azure: #2563eb;
+  /* Deep brand bands */
+  --color-royal: #181e25;
+  --color-royal-deep: #0a0a0a;
+  --color-indigo: #000000;
+
+  /* Section identity colors */
+  --color-coral: #ff5530;
+  --color-coral-deep: #cc4426;
+  --color-magenta: #ea5ec1;
+  --color-azure: #1456f0;
   --color-azure-deep: #1d4ed8;
-  --color-amber: #c2410c;
-  --color-amber-deep: #9a3412;
+  --color-azure-soft: #bfdbfe;
+  --color-cyan: #3daeff;
+  --color-violet: #a855f7;
+  --color-teal: #1456f0; /* Map teal to blue in Minimax */
+  --color-teal-deep: #17437d;
 
   /* Semantic */
-  --color-success-bg: #e7f7ef;
+  --color-success-bg: #e2f5ec;
   --color-success-text: #026b3f;
-  --color-error: #c2334d;
-  --color-error-bg: #fdeef1;
-  --color-focus: #7132f5;
+  --color-error: #ff5530;
+  --color-error-bg: #ffebe5;
+  --color-focus: #0a0a0a;
 
-  /* Elevation */
+  /* Radius scale — fully rounded buttons, soft cards */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 16px;
+  --radius-4xl: 16px;
+
+  /* Elevation — whisper-level only */
   --shadow-subtle: 0 4px 24px rgba(0, 0, 0, 0.03);
   --shadow-micro: 0 1px 4px rgba(16, 24, 40, 0.04);
-  --shadow-lifted: 0 12px 32px rgba(16, 17, 20, 0.08);
 
-  /* Motion */
-  --animate-fade-up: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
-  --animate-fade-in: fade-in 0.8s ease both;
+  /* Motion tokens */
+  --animate-fade-up: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.9s ease both;
+  --animate-float-slow: float 9s ease-in-out infinite;
+  --animate-float-slower: float 13s ease-in-out infinite reverse;
+  --animate-gradient-pan: gradient-pan 11s ease infinite alternate;
   --animate-pulse-dot: pulse-dot 2.2s ease-in-out infinite;
+  --animate-marquee: marquee 28s linear infinite;
+  --animate-blink: blink 1.1s steps(2, start) infinite;
+  --animate-shimmer: shimmer 2.4s linear infinite;
 
   @keyframes fade-up {
     from {
       opacity: 0;
-      transform: translateY(20px);
+      transform: translateY(26px);
     }
     to {
       opacity: 1;
@@ -92,97 +105,448 @@
       opacity: 1;
     }
   }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(0, -22px, 0) scale(1.06);
+    }
+  }
+  @keyframes gradient-pan {
+    from {
+      background-position: 0% 40%;
+    }
+    to {
+      background-position: 100% 60%;
+    }
+  }
   @keyframes pulse-dot {
     0%,
     100% {
-      box-shadow: 0 0 0 0 rgba(20, 158, 97, 0.5);
+      box-shadow: 0 0 0 0 rgba(20, 158, 97, 0.55);
     }
     50% {
-      box-shadow: 0 0 0 6px rgba(20, 158, 97, 0);
+      box-shadow: 0 0 0 7px rgba(20, 158, 97, 0);
+    }
+  }
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
     }
   }
 }
 
-/*
- * Dark mode — the same token names, redefined. Because every component
- * consumes tokens rather than raw hex, this block is the entire dark
- * theme; no component carries a dark: color variant.
+html {
+  scroll-behavior: smooth;
+}
+
+/* ── Workspace accent (Settings → Appearance → Personalize) ─────────
+ * The accent tints PRIMARY BUTTONS ONLY, via `--workspace-accent`, and
+ * defaults to Kraken Purple — the brand CTA color.
+ * It must NEVER override `--color-ink`: that variable is the body/text
+ * color, and hijacking it paints all text in the accent color.
+ */
+:root {
+  --workspace-accent: #7132f5;
+  --workspace-accent-hover: #5741d8;
+}
+
+/* Every `bg-ink` primary surface follows the accent (same coverage the
+ * old --color-ink hijack gave buttons, without touching text). Unlayered,
+ * so it wins over the Tailwind utility. */
+.bg-ink {
+  background-color: var(--workspace-accent, var(--color-brand));
+}
+
+/* `hover:bg-charcoal` is the codebase's primary-button hover; darken toward
+ * the brand's dark variant instead of drifting to grey. Scoped to actual
+ * controls so static `bg-ink` surfaces (announcement bar, step markers,
+ * toast cards) don't shift color when the pointer crosses them. */
+a.bg-ink:hover,
+button.bg-ink:hover:not(:disabled),
+[role="button"].bg-ink:hover,
+label.bg-ink:hover {
+  background-color: var(--workspace-accent-hover, var(--color-brand-dark));
+}
+
+/* ── Dark mode (class-based, persisted on <html>) ─────────────────────
+ * Semantic tokens above stay the source of truth for light mode.
+ * Flipping the same variables under `.dark` re-skins every
+ * `bg-canvas / bg-fog / text-ink / border-hairline / …` surface
+ * automatically — no per-component rewrites needed. The neutrals stay
+ * blue-cool so dark mode reads as the same family as light.
  */
 .dark {
-  --color-ink: #f4f4f7;
-  --color-charcoal: #e2e2e9;
-  --color-slate: #b9bbc9;
+  color-scheme: dark;
+  --color-ink: #f2f2f6;
+  --color-charcoal: #e2e2ea;
+  --color-slate: #a6a8ba;
   --color-steel: #9497a9;
-  --color-stone: #787b8d;
-  --color-muted: #5c5f70;
-  --color-canvas: #0d0e12;
-  --color-fog: #16171d;
-  --color-mist: #1c1e26;
-  --color-hairline: #2a2c36;
-  --color-hairline-soft: #23252e;
-  --color-purple-soft: #241a40;
-  --color-success-bg: #10281d;
-  --color-success-text: #4ade80;
-  --color-error-bg: #2b1119;
-  --color-error: #f87171;
+  --color-stone: #71748a;
+  --color-muted: #5a5d70;
+  --color-canvas: #0b0b11;
+  --color-fog: #14141c;
+  --color-mist: #1c1c26;
+  --color-hairline: #2a2a36;
+  --color-hairline-soft: #23232e;
+  --color-brand: #8b5bfb;
+  --color-brand-dark: #7132f5;
+  --color-brand-subtle: rgba(133, 91, 251, 0.22);
+  --color-violet: #8b5bfb;
+  --color-azure-soft: #1b2550;
+  --color-success-bg: #0c2b1f;
+  --color-success-text: #3ecf8e;
+  --color-error: #f97066;
+  --color-error-bg: #2a1215;
+  --color-focus: #8b5bfb;
 }
 
-/*
- * Respect the OS setting for anyone who has never touched the in-app
- * toggle. Once they do, ThemeToggle writes `.dark` (or removes it) on
- * <html>, and the class above wins over this block.
+.dark body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+.dark ::selection {
+  background: var(--color-brand);
+  color: #ffffff;
+}
+
+/* Purple reads on both canvases, so the default accent needs no dark-mode
+ * flip — `bg-ink text-white` keeps white text in both themes. Custom
+ * accents behave the same way. */
+.dark:not([data-accent="custom"]) {
+  --workspace-accent: #7132f5;
+  --workspace-accent-hover: #5b1ecf;
+}
+
+/* Dark-mode surfaces for the third-party file browser (chonky2 renders
+ * its own light MUI-ish chrome; these rules pull it into the theme). */
+.dark [class*="chonky" i],
+.dark [class*="MuiPaper" i],
+.dark [class*="MuiToolbar" i] {
+  background-color: #14141c;
+  color: #e2e2ea;
+  border-color: #2a2a36;
+}
+
+.dark .dot-grid {
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.12) 1px,
+    transparent 1px
+  );
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Scroll reveal (paired with <Reveal/>) ─────────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Gradient product cards ────────────────────────────────────────── */
+.grad-pan {
+  background-size: 180% 180%;
+}
+.grad-pan-animated {
+  animation: gradient-pan 11s ease infinite alternate;
+  background-size: 180% 180%;
+}
+
+/* Light-sheen sweep on hover (pure CSS, GPU-friendly) */
+.card-sheen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.card-sheen::after {
+  content: "";
+  position: absolute;
+  inset: -60%;
+  z-index: 1;
+  background: linear-gradient(
+    105deg,
+    transparent 42%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 58%
+  );
+  transform: translateX(-70%);
+  transition: transform 0.9s ease;
+  pointer-events: none;
+}
+.card-sheen:hover::after {
+  transform: translateX(70%);
+}
+
+/* ── Console mock details ──────────────────────────────────────────── */
+.console-caret::after {
+  content: "▍";
+  margin-left: 2px;
+  animation: blink 1.1s steps(2, start) infinite;
+}
+.shimmer-bar {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.14) 25%,
+    rgba(255, 255, 255, 0.34) 50%,
+    rgba(255, 255, 255, 0.14) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.4s linear infinite;
+}
+
+/* ── Backdrop textures ─────────────────────────────────────────────── */
+.dot-grid {
+  background-image: radial-gradient(rgba(16, 17, 20, 0.1) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.dot-grid-light {
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.16) 1px,
+    transparent 1px
+  );
+  background-size: 24px 24px;
+}
+
+/* ── Marquee ───────────────────────────────────────────────────────── */
+.marquee-mask {
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 8%,
+    #000 92%,
+    transparent
+  );
+}
+
+/* ── Interactive polish (150–350ms per the docs) ───────────────────── */
+.lift {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.35s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+.lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-subtle);
+}
+.press {
+  transition:
+    transform 0.15s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.press:active {
+  transform: scale(0.98);
+}
+
+/* ── Kraken type defaults ──────────────────────────────────────────
+ * Display type is 700 with negative tracking. Kept in @layer base so any
+ * explicit `tracking-*` / `font-*` utility on the element still wins.
  */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]):not([data-theme="dark"]) {
-    color-scheme: dark;
-  }
-}
-
 @layer base {
-  * {
-    border-color: var(--color-hairline);
-  }
-
-  body {
-    background-color: var(--color-canvas);
-    color: var(--color-ink);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  /* One focus treatment everywhere, in the brand color. */
-  :focus-visible {
-    outline: 2px solid var(--color-focus);
-    outline-offset: 2px;
-  }
-}
-
-@layer utilities {
-  /* Display type: the Plex face, tightened, for headings only. */
-  .text-display {
-    font-family: var(--font-display);
-    font-weight: 700;
+  .font-display {
     letter-spacing: -0.02em;
-    line-height: 1.12;
-  }
-
-  /* Mono micro-label: section eyebrows, metadata, table headers. */
-  .text-micro {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
   }
 }
 
-/* Anyone who asked for less motion gets none of it. */
+/* ── Radius policy (MiniMax fully rounded CTAs) ── */
+button.rounded-full:not(.is-circular),
+a.rounded-full:not(.is-circular),
+summary.rounded-full:not(.is-circular),
+[role="button"].rounded-full:not(.is-circular) {
+  border-radius: 9999px;
+}
+
+/* ── Button recipes ────────────────────────────────────────────────
+ * Kraken's five variants. Padding matches the spec (13px 16px primary,
+ * 8px for the subtle icon variant); radius is 12px on all of them.
+ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 9999px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.38;
+  padding: 13px 16px;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease;
+}
+.btn:active {
+  transform: scale(0.98);
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: var(--color-brand);
+  color: #ffffff;
+  font-weight: 600;
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--color-brand-dark);
+}
+
+.btn-outline {
+  background-color: var(--color-canvas);
+  color: var(--color-brand-dark);
+  border: 1px solid var(--color-brand-dark);
+}
+.btn-outline:hover:not(:disabled) {
+  background-color: var(--color-brand-subtle);
+}
+
+.btn-subtle {
+  background-color: var(--color-brand-subtle);
+  color: var(--color-brand);
+  padding: 8px;
+  font-weight: 600;
+}
+.btn-subtle:hover:not(:disabled) {
+  background-color: rgba(133, 91, 251, 0.24);
+}
+
+.btn-white {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-subtle);
+}
+.btn-white:hover:not(:disabled) {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.07);
+}
+
+.btn-secondary {
+  background-color: rgba(148, 151, 169, 0.08);
+  color: var(--color-ink);
+}
+.btn-secondary:hover:not(:disabled) {
+  background-color: rgba(148, 151, 169, 0.16);
+}
+.dark .btn-secondary {
+  background-color: rgba(148, 151, 169, 0.14);
+}
+.dark .btn-secondary:hover:not(:disabled) {
+  background-color: rgba(148, 151, 169, 0.22);
+}
+
+/* ── Badges (6px success / 8px neutral, per the spec) ─────────────── */
+.badge-success {
+  background-color: rgba(20, 158, 97, 0.16);
+  color: var(--color-success-text);
+  border-radius: var(--radius-sm);
+}
+.badge-neutral {
+  background-color: rgba(104, 107, 130, 0.12);
+  color: var(--color-slate);
+  border-radius: var(--radius-md);
+}
+.badge-brand {
+  background-color: var(--color-brand-subtle);
+  color: var(--color-brand);
+  border-radius: var(--radius-md);
+}
+.dark .badge-success {
+  color: #3ecf8e;
+}
+.dark .badge-neutral {
+  color: var(--color-slate);
+}
+
+/* Brand-tinted dot grid to match the purple canvas */
+.dot-grid-brand {
+  background-image: radial-gradient(
+    rgba(113, 50, 245, 0.16) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   *,
   *::before,
   *::after {
-    animation-duration: 0.001ms !important;
+    animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@theme {
+  --color-canvasBg: #fcfcfd;
+  --color-noteYellow: #fefce8;
+  --color-noteYellowBorder: #fef08a;
+  --color-noteMint: #f0fdf4;
+  --color-noteMintBorder: #bbf7d0;
+  --color-noteLavender: #faf5ff;
+  --color-noteLavenderBorder: #e9d5ff;
+  --color-notePeach: #fff7ed;
+  --color-notePeachBorder: #fed7aa;
+  --color-noteSky: #f0f9ff;
+  --color-noteSkyBorder: #bae6fd;
+  --shadow-card: 0 4px 20px -2px rgba(0, 0, 0, 0.04), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+  --shadow-card-hover: 0 12px 30px -4px rgba(0, 0, 0, 0.07), 0 4px 10px -2px rgba(0, 0, 0, 0.03);
+  --shadow-float: 0 10px 30px -5px rgba(0, 0, 0, 0.06), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
+  --shadow-card-dark: 0 8px 32px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-card-hover-dark: 0 16px 40px -4px rgba(0, 0, 0, 0.65), 0 0 20px -2px var(--glow-color, rgba(255,255,255,0.08));
+  --shadow-float-dark: 0 16px 36px -4px rgba(0, 0, 0, 0.6), 0 4px 12px -2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }

@@ -1,22 +1,28 @@
 import { AppShell } from "@/components/AppShell";
-import { ComingSoon } from "@/components/ComingSoon";
-import { SectionHeader } from "@/components/SectionHeader";
-import { sectionByKey } from "@/components/sections";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { FilesManager } from "@/components/FilesManager";
 import { requireActiveSession } from "@/lib/session";
 
-const section = sectionByKey("files");
-
-export const metadata = {
-  title: `${section.label} · Nomin Workspace`,
-  description: section.blurb,
-};
+export const dynamic = "force-dynamic";
 
 export default async function FilesPage() {
   const user = await requireActiveSession();
+
   return (
-    <AppShell user={user} active="files">
-      <SectionHeader section={section} />
-      <ComingSoon section={section} />
+    <AppShell
+      user={{
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        displayName: user.displayName,
+        avatarDriveId: user.avatarDriveId,
+      }}
+      active="/files"
+      fullBleed
+    >
+      <ErrorBoundary name="Files">
+        <FilesManager />
+      </ErrorBoundary>
     </AppShell>
   );
 }

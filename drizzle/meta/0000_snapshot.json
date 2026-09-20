@@ -1,11 +1,136 @@
 {
-  "id": "5f70b8f2-0b8e-468f-8b96-c69694373300",
+  "id": "0826cdb9-b7d0-42c7-b47a-669518d41eec",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.chat_messages": {
-      "name": "chat_messages",
+    "public.nomin_calls": {
+      "name": "nomin_calls",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "type": {
+          "name": "type",
+          "type": "nomin_call_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "context": {
+          "name": "context",
+          "type": "nomin_call_context",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'standalone'"
+        },
+        "context_id": {
+          "name": "context_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "daily_room_name": {
+          "name": "daily_room_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "daily_room_url": {
+          "name": "daily_room_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "nomin_calls_created_by_idx": {
+          "name": "nomin_calls_created_by_idx",
+          "columns": [
+            {
+              "expression": "created_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "nomin_calls_expires_at_idx": {
+          "name": "nomin_calls_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "nomin_calls_created_by_nomin_users_id_fk": {
+          "name": "nomin_calls_created_by_nomin_users_id_fk",
+          "tableFrom": "nomin_calls",
+          "tableTo": "nomin_users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "nomin_calls_daily_room_name_unique": {
+          "name": "nomin_calls_daily_room_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "daily_room_name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.nomin_chat_messages": {
+      "name": "nomin_chat_messages",
       "schema": "",
       "columns": {
         "id": {
@@ -19,7 +144,7 @@
           "name": "conversation_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "user_id": {
           "name": "user_id",
@@ -33,9 +158,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "edited_at": {
-          "name": "edited_at",
-          "type": "timestamp with time zone",
+        "content_json": {
+          "name": "content_json",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -45,26 +170,18 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
-        "chat_messages_conversation_idx": {
-          "name": "chat_messages_conversation_idx",
-          "columns": [
-            {
-              "expression": "conversation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "chat_messages_user_id_idx": {
-          "name": "chat_messages_user_id_idx",
+        "nomin_chat_messages_user_id_idx": {
+          "name": "nomin_chat_messages_user_id_idx",
           "columns": [
             {
               "expression": "user_id",
@@ -80,10 +197,10 @@
         }
       },
       "foreignKeys": {
-        "chat_messages_conversation_id_conversations_id_fk": {
-          "name": "chat_messages_conversation_id_conversations_id_fk",
-          "tableFrom": "chat_messages",
-          "tableTo": "conversations",
+        "nomin_chat_messages_conversation_id_nomin_conversations_id_fk": {
+          "name": "nomin_chat_messages_conversation_id_nomin_conversations_id_fk",
+          "tableFrom": "nomin_chat_messages",
+          "tableTo": "nomin_conversations",
           "columnsFrom": [
             "conversation_id"
           ],
@@ -93,10 +210,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "chat_messages_user_id_users_id_fk": {
-          "name": "chat_messages_user_id_users_id_fk",
-          "tableFrom": "chat_messages",
-          "tableTo": "users",
+        "nomin_chat_messages_user_id_nomin_users_id_fk": {
+          "name": "nomin_chat_messages_user_id_nomin_users_id_fk",
+          "tableFrom": "nomin_chat_messages",
+          "tableTo": "nomin_users",
           "columnsFrom": [
             "user_id"
           ],
@@ -113,8 +230,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.checkpoints": {
-      "name": "checkpoints",
+    "public.nomin_checkpoints": {
+      "name": "nomin_checkpoints",
       "schema": "",
       "columns": {
         "id": {
@@ -142,52 +259,14 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         }
       },
-      "indexes": {
-        "checkpoints_user_id_idx": {
-          "name": "checkpoints_user_id_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "checkpoints_created_at_idx": {
-          "name": "checkpoints_created_at_idx",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
-        "checkpoints_user_id_users_id_fk": {
-          "name": "checkpoints_user_id_users_id_fk",
-          "tableFrom": "checkpoints",
-          "tableTo": "users",
+        "nomin_checkpoints_user_id_nomin_users_id_fk": {
+          "name": "nomin_checkpoints_user_id_nomin_users_id_fk",
+          "tableFrom": "nomin_checkpoints",
+          "tableTo": "nomin_users",
           "columnsFrom": [
             "user_id"
           ],
@@ -204,8 +283,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.conversation_participants": {
-      "name": "conversation_participants",
+    "public.nomin_conversation_participants": {
+      "name": "nomin_conversation_participants",
       "schema": "",
       "columns": {
         "conversation_id": {
@@ -234,28 +313,12 @@
           "notNull": false
         }
       },
-      "indexes": {
-        "conversation_participants_user_idx": {
-          "name": "conversation_participants_user_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
-        "conversation_participants_conversation_id_conversations_id_fk": {
-          "name": "conversation_participants_conversation_id_conversations_id_fk",
-          "tableFrom": "conversation_participants",
-          "tableTo": "conversations",
+        "nomin_conversation_participants_conversation_id_nomin_conversations_id_fk": {
+          "name": "nomin_conversation_participants_conversation_id_nomin_conversations_id_fk",
+          "tableFrom": "nomin_conversation_participants",
+          "tableTo": "nomin_conversations",
           "columnsFrom": [
             "conversation_id"
           ],
@@ -265,10 +328,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "conversation_participants_user_id_users_id_fk": {
-          "name": "conversation_participants_user_id_users_id_fk",
-          "tableFrom": "conversation_participants",
-          "tableTo": "users",
+        "nomin_conversation_participants_user_id_nomin_users_id_fk": {
+          "name": "nomin_conversation_participants_user_id_nomin_users_id_fk",
+          "tableFrom": "nomin_conversation_participants",
+          "tableTo": "nomin_users",
           "columnsFrom": [
             "user_id"
           ],
@@ -285,8 +348,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.conversations": {
-      "name": "conversations",
+    "public.nomin_conversations": {
+      "name": "nomin_conversations",
       "schema": "",
       "columns": {
         "id": {
@@ -298,7 +361,7 @@
         },
         "type": {
           "name": "type",
-          "type": "conversation_type",
+          "type": "nomin_conversation_type",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
@@ -332,10 +395,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "conversations_created_by_users_id_fk": {
-          "name": "conversations_created_by_users_id_fk",
-          "tableFrom": "conversations",
-          "tableTo": "users",
+        "nomin_conversations_created_by_nomin_users_id_fk": {
+          "name": "nomin_conversations_created_by_nomin_users_id_fk",
+          "tableFrom": "nomin_conversations",
+          "tableTo": "nomin_users",
           "columnsFrom": [
             "created_by"
           ],
@@ -352,8 +415,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.files": {
-      "name": "files",
+    "public.nomin_message_reactions": {
+      "name": "nomin_message_reactions",
       "schema": "",
       "columns": {
         "id": {
@@ -363,48 +426,23 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
+        "message_id": {
+          "name": "message_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "user_id": {
           "name": "user_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "name": {
-          "name": "name",
+        "emoji": {
+          "name": "emoji",
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "parent_id": {
-          "name": "parent_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "is_folder": {
-          "name": "is_folder",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "size_bytes": {
-          "name": "size_bytes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "mime_type": {
-          "name": "mime_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "storage_key": {
-          "name": "storage_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -412,21 +450,14 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         }
       },
       "indexes": {
-        "files_parent_idx": {
-          "name": "files_parent_idx",
+        "nomin_message_reactions_message_id_idx": {
+          "name": "nomin_message_reactions_message_id_idx",
           "columns": [
             {
-              "expression": "parent_id",
+              "expression": "message_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -437,9 +468,15 @@
           "method": "btree",
           "with": {}
         },
-        "files_user_id_idx": {
-          "name": "files_user_id_idx",
+        "nomin_message_reactions_message_user_unique": {
+          "name": "nomin_message_reactions_message_user_unique",
           "columns": [
+            {
+              "expression": "message_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "user_id",
               "isExpression": false,
@@ -447,17 +484,30 @@
               "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
         }
       },
       "foreignKeys": {
-        "files_user_id_users_id_fk": {
-          "name": "files_user_id_users_id_fk",
-          "tableFrom": "files",
-          "tableTo": "users",
+        "nomin_message_reactions_message_id_nomin_chat_messages_id_fk": {
+          "name": "nomin_message_reactions_message_id_nomin_chat_messages_id_fk",
+          "tableFrom": "nomin_message_reactions",
+          "tableTo": "nomin_chat_messages",
+          "columnsFrom": [
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "nomin_message_reactions_user_id_nomin_users_id_fk": {
+          "name": "nomin_message_reactions_user_id_nomin_users_id_fk",
+          "tableFrom": "nomin_message_reactions",
+          "tableTo": "nomin_users",
           "columnsFrom": [
             "user_id"
           ],
@@ -474,8 +524,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.projects": {
-      "name": "projects",
+    "public.nomin_projects": {
+      "name": "nomin_projects",
       "schema": "",
       "columns": {
         "id": {
@@ -503,6 +553,36 @@
           "primaryKey": false,
           "notNull": true
         },
+        "codebase_drive_id": {
+          "name": "codebase_drive_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "codebase_file_name": {
+          "name": "codebase_file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "codebase_file_size": {
+          "name": "codebase_file_size",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "preview_drive_id": {
+          "name": "preview_drive_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preview_file_name": {
+          "name": "preview_file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -519,8 +599,8 @@
         }
       },
       "indexes": {
-        "projects_user_id_idx": {
-          "name": "projects_user_id_idx",
+        "nomin_projects_user_id_idx": {
+          "name": "nomin_projects_user_id_idx",
           "columns": [
             {
               "expression": "user_id",
@@ -534,8 +614,8 @@
           "method": "btree",
           "with": {}
         },
-        "projects_created_at_idx": {
-          "name": "projects_created_at_idx",
+        "nomin_projects_created_at_idx": {
+          "name": "nomin_projects_created_at_idx",
           "columns": [
             {
               "expression": "created_at",
@@ -551,10 +631,10 @@
         }
       },
       "foreignKeys": {
-        "projects_user_id_users_id_fk": {
-          "name": "projects_user_id_users_id_fk",
-          "tableFrom": "projects",
-          "tableTo": "users",
+        "nomin_projects_user_id_nomin_users_id_fk": {
+          "name": "nomin_projects_user_id_nomin_users_id_fk",
+          "tableFrom": "nomin_projects",
+          "tableTo": "nomin_users",
           "columnsFrom": [
             "user_id"
           ],
@@ -571,8 +651,158 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.users": {
-      "name": "users",
+    "public.nomin_scheduled_meetings": {
+      "name": "nomin_scheduled_meetings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organizer_id": {
+          "name": "organizer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_time": {
+          "name": "start_time",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duration_minutes": {
+          "name": "duration_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 30
+        },
+        "call_type": {
+          "name": "call_type",
+          "type": "nomin_call_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rrule": {
+          "name": "rrule",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invitee_ids": {
+          "name": "invitee_ids",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'"
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "excluded_dates": {
+          "name": "excluded_dates",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "nomin_scheduled_meetings_organizer_idx": {
+          "name": "nomin_scheduled_meetings_organizer_idx",
+          "columns": [
+            {
+              "expression": "organizer_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "nomin_scheduled_meetings_start_time_idx": {
+          "name": "nomin_scheduled_meetings_start_time_idx",
+          "columns": [
+            {
+              "expression": "start_time",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "nomin_scheduled_meetings_organizer_id_nomin_users_id_fk": {
+          "name": "nomin_scheduled_meetings_organizer_id_nomin_users_id_fk",
+          "tableFrom": "nomin_scheduled_meetings",
+          "tableTo": "nomin_users",
+          "columnsFrom": [
+            "organizer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "nomin_scheduled_meetings_project_id_nomin_projects_id_fk": {
+          "name": "nomin_scheduled_meetings_project_id_nomin_projects_id_fk",
+          "tableFrom": "nomin_scheduled_meetings",
+          "tableTo": "nomin_projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.nomin_users": {
+      "name": "nomin_users",
       "schema": "",
       "columns": {
         "id": {
@@ -596,7 +826,7 @@
         },
         "role": {
           "name": "role",
-          "type": "role",
+          "type": "nomin_role",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
@@ -607,6 +837,25 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "avatar_drive_id": {
+          "name": "avatar_drive_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avatar_file_name": {
+          "name": "avatar_file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "has_completed_onboarding": {
+          "name": "has_completed_onboarding",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "department": {
           "name": "department",
@@ -632,8 +881,8 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "users_email_unique": {
-          "name": "users_email_unique",
+        "nomin_users_email_unique": {
+          "name": "nomin_users_email_unique",
           "nullsNotDistinct": false,
           "columns": [
             "email"
@@ -646,16 +895,33 @@
     }
   },
   "enums": {
-    "public.conversation_type": {
-      "name": "conversation_type",
+    "public.nomin_call_context": {
+      "name": "nomin_call_context",
+      "schema": "public",
+      "values": [
+        "standalone",
+        "project",
+        "checkpoint"
+      ]
+    },
+    "public.nomin_call_type": {
+      "name": "nomin_call_type",
+      "schema": "public",
+      "values": [
+        "voice",
+        "video"
+      ]
+    },
+    "public.nomin_conversation_type": {
+      "name": "nomin_conversation_type",
       "schema": "public",
       "values": [
         "direct",
         "group"
       ]
     },
-    "public.role": {
-      "name": "role",
+    "public.nomin_role": {
+      "name": "nomin_role",
       "schema": "public",
       "values": [
         "admin",

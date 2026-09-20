@@ -1,32 +1,41 @@
-/**
- * Small status pill. Carried over from Nomin's original design system and
- * retoned onto the shared tokens.
- */
-
-export type BadgeTone = "neutral" | "success" | "brand" | "danger" | "live";
-
-const TONES: Record<BadgeTone, string> = {
-  neutral: "bg-mist text-steel",
-  success: "bg-success-bg text-success-text",
-  brand: "bg-purple-soft text-purple-deep",
-  danger: "bg-error-bg text-error",
-  live: "bg-success-bg text-success-text",
+const tones: Record<string, string> = {
+  new: "badge-brand",
+  beta: "badge-neutral",
+  live: "badge-success",
+  phase: "bg-ink text-white rounded-md",
+  mono: "badge-neutral",
 };
 
+/**
+ * Kraken badge system — 6px radius on success, 8px on neutral/brand, never a
+ * pill. NEW = brand purple · BETA/mono = neutral · LIVE = Kraken green.
+ */
 export function Badge({
-  tone = "neutral",
+  tone = "mono",
   children,
   className = "",
 }: {
-  tone?: BadgeTone;
+  tone?: keyof typeof tones | string;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.14em] ${TONES[tone]} ${className}`}
+      className={`inline-flex items-center gap-1 px-2 py-1 font-mono text-[12px] font-medium uppercase tracking-[0.06em] ${
+        tones[tone] ?? tones.mono
+      }${className ? ` ${className}` : ""}`}
     >
       {children}
+    </span>
+  );
+}
+
+/** Pulsing live dot for status rows. */
+export function LiveDot({ className = "" }: { className?: string }) {
+  return (
+    <span className={`relative flex h-2 w-2${className ? ` ${className}` : ""}`}>
+      <span className="absolute inline-flex h-full w-full animate-pulse-dot rounded-full bg-teal" />
+      <span className="relative inline-flex h-2 w-2 rounded-full bg-teal" />
     </span>
   );
 }

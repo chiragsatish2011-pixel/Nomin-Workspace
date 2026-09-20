@@ -1,86 +1,163 @@
-import type { InputHTMLAttributes } from "react";
-import { Button } from "@/components/Button";
+import Image from "next/image";
+import { ConsoleMock } from "@/components/ConsoleMock";
+import { Wordmark } from "@/components/Wordmark";
 
 /**
- * The two-panel frame behind /signin and /setup: a brand panel on the left
- * (hidden on small screens, where it would just push the form below the
- * fold) and the form on the right.
+ * Split-screen auth layout — white form canvas + deep-royal brand panel
+ * (Cohere dark-feature-band). Topped by the black announcement bar.
  */
 export function AuthLayout({
   eyebrow,
   title,
   subtitle,
-  footer,
   children,
+  footer,
 }: {
   eyebrow: string;
   title: string;
-  subtitle?: string;
-  footer?: React.ReactNode;
+  subtitle: string;
   children: React.ReactNode;
+  footer: React.ReactNode;
 }) {
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
-      <aside className="relative hidden flex-col justify-between overflow-hidden bg-purple-deep p-12 text-white lg:flex">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-24 -top-24 h-[420px] w-[420px] rounded-full bg-purple opacity-60 blur-3xl"
-        />
-        <span className="relative flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 font-display text-base font-bold">
-            N
-          </span>
-          <span className="font-display text-lg font-bold tracking-[-0.02em]">
-            Nomin
-          </span>
-        </span>
-        <div className="relative max-w-md">
-          <p className="font-display text-[34px] font-bold leading-[1.15] tracking-[-0.025em]">
-            One workspace for the whole team.
-          </p>
-          <p className="mt-4 text-[15px] leading-relaxed text-white/70">
-            Checkpoints, files, projects and chat — together, and private to
-            your team.
-          </p>
-        </div>
-        <p className="relative text-micro text-white/45">
-          Private workspace · no public sign-up
+    <main className="flex min-h-screen flex-col bg-canvas text-ink">
+      {/* Announcement bar */}
+      <div className="flex min-h-9 items-center justify-center gap-2 bg-ink px-4 py-2 text-center">
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/85">
+          Secure sign-in to your workspace
         </p>
-      </aside>
+      </div>
 
-      <main className="flex items-center justify-center px-5 py-12 sm:px-10">
-        <div className="w-full max-w-[400px] animate-[fade-up_0.6s_cubic-bezier(0.22,1,0.36,1)_both]">
-          <p className="text-micro text-purple">{eyebrow}</p>
-          <h1 className="mt-3 font-display text-[30px] font-bold tracking-[-0.025em]">
-            {title}
-          </h1>
-          {subtitle && (
-            <p className="mt-2 text-[15px] leading-relaxed text-steel">
+      <div className="grid flex-1 lg:grid-cols-[1fr_1.05fr]">
+        {/* Form side */}
+        <div className="relative flex items-center justify-center overflow-hidden px-4 py-12 sm:px-8">
+          <div
+            aria-hidden
+            className="dot-grid pointer-events-none absolute inset-0 opacity-40 [mask-image:radial-gradient(70%_60%_at_50%_40%,#000,transparent)]"
+          />
+          <div className="relative w-full max-w-md animate-fade-up">
+            <Wordmark size="lg" />
+            <p className="mt-8 font-mono text-xs uppercase tracking-[0.22em] text-stone">
+              {eyebrow}
+            </p>
+            <h1 className="mt-3 font-display text-4xl font-bold leading-[1.05] tracking-[-0.02em] sm:text-5xl">
+              {title}
+            </h1>
+            <p className="mt-3 text-[15px] leading-relaxed text-steel">
               {subtitle}
             </p>
-          )}
-          <div className="mt-8">{children}</div>
-          {footer && <div className="mt-8">{footer}</div>}
+            <div className="mt-8">{children}</div>
+            <div className="mt-6 text-center text-sm text-steel">{footer}</div>
+          </div>
         </div>
-      </main>
-    </div>
+
+        {/* Brand panel side */}
+        <div className="relative hidden overflow-hidden bg-royal-deep lg:block">
+          {/* Fallback gradient (visible if the hero image fails to load) */}
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-gradient-to-br from-brand-deep via-royal-deep to-indigo"
+          />
+          {/* Hero background image — optimized via next/image (cover, centered) */}
+          <Image
+            src="/backgrounds/nomin-hero-bg.jpg"
+            alt=""
+            fill
+            priority
+            sizes="(max-width: 1024px) 0vw, 55vw"
+            className="object-cover object-center"
+          />
+          {/* Dark overlay (35%) for text contrast over bright streaks */}
+          <div aria-hidden className="absolute inset-0 bg-indigo/45" />
+          <div
+            aria-hidden
+            className="dot-grid-light absolute inset-0 opacity-60"
+          />
+          <div
+            aria-hidden
+            className="absolute -left-24 -top-24 h-96 w-96 animate-float-slow rounded-full bg-brand/30 blur-[110px]"
+          />
+          <div
+            aria-hidden
+            className="absolute -bottom-32 -right-24 h-[28rem] w-[28rem] animate-float-slower rounded-full bg-brand-deep/40 blur-[130px]"
+          />
+          <div className="relative flex h-full flex-col justify-center px-12 py-16 xl:px-20">
+            <p
+              className="animate-fade-up font-mono text-xs uppercase tracking-[0.24em] text-white/70"
+              style={{ animationDelay: "100ms" }}
+            >
+              Nomin Workspace
+            </p>
+            <h2
+              className="mt-4 max-w-md animate-fade-up font-display text-5xl font-bold leading-[1.02] tracking-[-0.03em] text-white xl:text-6xl"
+              style={{ animationDelay: "200ms" }}
+            >
+              One workspace.
+              <br />
+              Zero chaos.
+            </h2>
+            <p
+              className="mt-5 max-w-md animate-fade-up text-[15px] leading-relaxed text-white/70"
+              style={{ animationDelay: "300ms" }}
+            >
+              Files, project packages, chat and calls for your 3–10 person
+              team — starting with secure sign-in today.
+            </p>
+            <div
+              className="mt-10 max-w-md animate-fade-up"
+              style={{ animationDelay: "450ms" }}
+            >
+              <ConsoleMock />
+            </div>
+            <div className="mt-auto flex items-center gap-5 pt-12 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40">
+              <span>Secure sessions</span>
+              <span aria-hidden>·</span>
+              <span>Private workspace</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
   );
 }
 
+/** Shared auth form primitives — 10px inputs + the 12px Kraken Purple CTA. */
 export function AuthField({
   label,
-  hint,
   ...props
-}: InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string }) {
+}: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-[13px] font-medium text-slate">{label}</span>
+    <label className="flex flex-col gap-1.5 text-sm">
+      <span className="font-medium text-charcoal">{label}</span>
       <input
         {...props}
-        className="h-11 rounded-xl border border-hairline bg-canvas px-3.5 text-[15px] text-ink transition-colors placeholder:text-muted hover:border-stone focus:border-purple focus:outline-none disabled:opacity-60"
+        className="h-11 rounded-lg border border-hairline bg-canvas px-3.5 text-[15px] text-ink outline-none transition-all duration-200 placeholder:text-stone hover:border-steel focus:border-brand focus:ring-2 focus:ring-brand/25"
       />
-      {hint && <span className="text-[12px] text-stone">{hint}</span>}
     </label>
+  );
+}
+
+export function AuthSubmit({
+  loading,
+  children,
+}: {
+  loading: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="submit"
+      disabled={loading}
+      className="press flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand text-[15px] font-semibold text-white transition-colors duration-200 hover:bg-brand-dark disabled:cursor-wait disabled:opacity-60"
+    >
+      {loading && (
+        <span
+          aria-hidden
+          className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
+        />
+      )}
+      {children}
+    </button>
   );
 }
 
@@ -88,31 +165,9 @@ export function AuthError({ message }: { message: string }) {
   return (
     <p
       role="alert"
-      className="rounded-xl bg-error-bg px-3.5 py-2.5 text-[13px] text-error"
+      className="animate-fade-in rounded-lg border border-error/30 bg-error-bg px-3.5 py-2.5 text-sm text-error"
     >
       {message}
     </p>
-  );
-}
-
-export function AuthSubmit({
-  loading,
-  disabled,
-  children,
-}: {
-  loading?: boolean;
-  disabled?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Button
-      type="submit"
-      size="lg"
-      loading={loading}
-      disabled={disabled}
-      className="w-full"
-    >
-      {children}
-    </Button>
   );
 }

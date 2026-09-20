@@ -1,0 +1,1 @@
+{"name":"nomin-desktop","version":"1.0.0","main":"main.js","scripts":{"start":"electron .","build":"electron-builder"},"devDependencies":{"electron":"^28.2.0","electron-builder":"^24.9.1"},"allowScripts":{"electron@28.3.3":true}}

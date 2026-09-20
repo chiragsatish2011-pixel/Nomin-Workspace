@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
 import { runBootstrap, testDatabaseUrl } from "@/lib/setup";
 
-export const runtime = "nodejs";
-
 /**
  * POST /api/setup/migrate — create the tables on the configured database.
- * Idempotent: it reports `already` and writes nothing when the tables
- * exist, so a double-click can never clobber live data.
+ * Idempotent: refuses when tables already exist, so it can never wipe data.
  */
 export async function POST() {
   const url = process.env.DATABASE_URL;
@@ -23,14 +20,12 @@ export async function POST() {
         { status: 503 }
       );
     }
-    return NextResponse.json(await runBootstrap(url));
+    const result = await runBootstrap(url);
+    return NextResponse.json(result);
   } catch (err) {
     console.error("[setup/migrate]", err);
     return NextResponse.json(
-      {
-        error:
-          "Couldn't create the tables. Check the database URL and its permissions.",
-      },
+      { error: "Couldn't create the tables. Check the database URL and permissions." },
       { status: 500 }
     );
   }

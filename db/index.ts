@@ -6,18 +6,21 @@ import * as schema from "./schema";
 import { isBuildPhase } from "@/lib/env";
 
 /**
- * Stateless Postgres client, built for serverless functions.
+ * Stateless Postgres client for Vercel serverless functions.
  *
- * Uses Neon's HTTP driver (`@neondatabase/serverless` +
- * `drizzle-orm/neon-http`): one HTTPS fetch per query, no TCP sockets, no
- * connection pool, nothing held open between invocations. Every route that
- * imports `db` therefore stays stateless and completes quickly.
+ * Uses Neon's HTTP driver (`@neondatabase/serverless` + `drizzle-orm/neon-http`):
+ * one HTTPS fetch per query, no TCP sockets, no connection pool, nothing
+ * held open between invocations. Every API route that imports `db` stays
+ * stateless and completes quickly.
  *
- * Fail-fast: if DATABASE_URL is missing at runtime, ANY use of `db` throws
- * immediately with a message naming the variable. This is deliberately lazy
- * (a Proxy) rather than a throw at import time, so:
- *  - `next build` still succeeds (the build phase gets a placeholder), and
- *  - the /setup wizard — which runs WITHOUT a database on step 1 — can
+ * Fail-fast: if DATABASE_URL is missing or empty at runtime, ANY use of
+ * `db` throws immediately:
+ *   "DATABASE_URL is not set. Add it in Vercel's Environment Variables
+ *    settings for this environment."
+ * This is intentionally lazy (a Proxy) rather than throwing at import time,
+ * so:
+ *  - `next build` still succeeds (build phase gets a placeholder), and
+ *  - the /setup wizard (which runs WITHOUT a database on step 1) can still
  *    render and return structured 503s instead of crashing on import.
  */
 
@@ -36,7 +39,7 @@ let cachedUrl: string | null = null;
 
 function missingDatabaseError(): Error {
   return new Error(
-    "DATABASE_URL is not set. Add it to .env.local for local development, or to your host's Environment Variables settings for this environment."
+    "DATABASE_URL is not set. Add it in Vercel's Environment Variables settings for this environment."
   );
 }
 

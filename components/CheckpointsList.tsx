@@ -1,263 +1,408 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { Button } from "@/components/Button";
-import { PencilIcon, TrashIcon } from "@/components/icons";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Badge } from "@/components/Badge";
 import { UserAvatar } from "@/components/UserAvatar";
-import { formatRelativeTime } from "@/lib/format";
 import { getDisplayName } from "@/lib/userColor";
+import { formatDateTime } from "@/lib/format";
+import { extractPlainTextFromTiptap, renderTiptapJsonToReact, TiptapEditor } from "@/components/mentions/TiptapEditor";
 
-/**
- * The checkpoints timeline: compose, list, edit and delete.
- *
- * The permission checks below only decide what to RENDER. The API enforces
- * author-or-admin independently on every write, so hiding a button is a
- * courtesy, never the security boundary.
- */
-
-export interface CheckpointRow {
+export interface CheckpointItem {
   id: string;
   note: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string | Date;
+  updatedAt?: string | Date;
   userId: string;
-  displayName: string | null;
   userEmail: string;
+  userRole: "admin" | "member";
+  displayName?: string | null;
+  avatarDriveId?: string | null;
+  contentJson?: string | null;
 }
 
-export interface Viewer {
+export interface CheckpointViewer {
   id: string;
   role: "admin" | "member";
 }
 
+const EXAMPLE_NOTES = [
+  "made landingpage of nomin smoother",
+  "updates design theme in mobile app",
+  "fixed loading state bug",
+  "added checkpoints section for team progress",
+];
+
+const formatDate = formatDateTime;
+
 export function CheckpointsList({
-  initial,
-  viewer,
-  loadError,
+  initialItems,
+  currentUser,
+  notice,
 }: {
-  initial: CheckpointRow[];
-  viewer: Viewer;
-  /** Set when the server render itself failed to read the timeline. */
-  loadError?: string | null;
+  initialItems: CheckpointItem[];
+  currentUser: CheckpointViewer;
+  notice?: string | null;
 }) {
-  const [rows, setRows] = useState<CheckpointRow[]>(initial);
-  const [note, setNote] = useState("");
-  const [error, setError] = useState<string | null>(loadError ?? null);
-  const [posting, setPosting] = useState(false);
+  const [items, setItems] = useState<CheckpointItem[]>(initialItems);
+  useEffect(() => {
+    setItems(initialItems);
+  }, [initialItems]);
+  const [createDraft, setCreateDraft] = useState<{ text: string; json: unknown } | null>(null);
+  const [createKey, setCreateKey] = useState(0);
+  const [createInitial, setCreateInitial] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editText, setEditText] = useState("");
-  const [pendingId, setPendingId] = useState<string | null>(null);
-  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const [editDraft, setEditDraft] = useState<{ text: string; json: unknown } | null>(null);
+  const [editKey, setEditKey] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const router = useRouter();
 
-  const canModify = useCallback(
-    (row: CheckpointRow) => row.userId === viewer.id || viewer.role === "admin",
-    [viewer.id, viewer.role]
-  );
-
-  async function send(method: string, body: unknown) {
-    const res = await fetch("/api/checkpoints", {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Something went wrong.");
-    return data;
+  function canModerate(item: CheckpointItem): boolean {
+    return item.userId === currentUser.id || currentUser.role === "admin";
   }
 
-  async function post(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = note.trim();
-    if (!trimmed || posting) return;
+    const payload = createDraft;
+    const trimmed = payload?.text?.trim() ?? "";
+    if (!trimmed) return;
+
+    setIsSubmitting(true);
     setError(null);
-    setPosting(true);
+
     try {
-      const data = await send("POST", { note: trimmed });
-      // The server returns the stored row, so the timestamps rendered are
-      // the database's, never a guess made on the client.
-      setRows((prev) => [data.checkpoint as CheckpointRow, ...prev]);
-      setNote("");
-      composerRef.current?.focus();
-    } catch (err) {
-      setError((err as Error).message);
+      const res = await fetch("/api/checkpoints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: trimmed, contentJson: payload?.json ? JSON.stringify(payload.json) : null }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create checkpoint.");
+      }
+
+      setItems((prev) => [data.checkpoint, ...prev]);
+      setCreateDraft(null);
+      setCreateInitial(null);
+      setCreateKey((k) => k + 1);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
-      setPosting(false);
+      setIsSubmitting(false);
     }
   }
 
-  async function saveEdit(id: string) {
-    const trimmed = editText.trim();
-    if (!trimmed) return;
+  function startEditing(item: CheckpointItem) {
+    setEditingId(item.id);
+    if (item.contentJson) {
+      try {
+        const parsed = JSON.parse(item.contentJson);
+        const text = extractPlainTextFromTiptap(parsed) || item.note;
+        setEditDraft({ text, json: parsed });
+      } catch {
+        setEditDraft({ text: item.note, json: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: item.note }] }] } });
+      }
+    } else {
+      setEditDraft({ text: item.note, json: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: item.note }] }] } });
+    }
+    setEditKey((k) => k + 1);
     setError(null);
-    setPendingId(id);
+  }
+
+  async function handleUpdate(item: CheckpointItem) {
+    const payload = editDraft;
+    const trimmed = payload?.text?.trim() ?? "";
+    if (!trimmed || isSaving) return;
+
+    setIsSaving(true);
+    setError(null);
+
     try {
-      const data = await send("PATCH", { id, note: trimmed });
-      const updated = data.checkpoint as CheckpointRow;
-      setRows((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, ...updated } : r))
+      const res = await fetch("/api/checkpoints", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, note: trimmed, contentJson: payload?.json ? JSON.stringify(payload.json) : null }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update checkpoint.");
+      }
+
+      setItems((prev) =>
+        prev.map((entry) => (entry.id === item.id ? data.checkpoint : entry))
       );
       setEditingId(null);
-    } catch (err) {
-      setError((err as Error).message);
+      setEditDraft(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
-      setPendingId(null);
+      setIsSaving(false);
     }
   }
 
-  async function remove(id: string) {
+  async function handleDelete(item: CheckpointItem) {
+    if (deletingId) return;
+    const confirmed = window.confirm(
+      "Delete this checkpoint? It will be removed from the team timeline (kept as deleted history in the sheet)."
+    );
+    if (!confirmed) return;
+
+    setDeletingId(item.id);
     setError(null);
-    setPendingId(id);
+
     try {
-      await send("DELETE", { id });
-      setRows((prev) => prev.filter((r) => r.id !== id));
-    } catch (err) {
-      setError((err as Error).message);
+      const res = await fetch("/api/checkpoints", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          (data && data.error) || "Failed to delete checkpoint."
+        );
+      }
+
+      setItems((prev) => prev.filter((entry) => entry.id !== item.id));
+      if (editingId === item.id) {
+        setEditingId(null);
+        setEditDraft(null);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
-      setPendingId(null);
+      setDeletingId(null);
     }
   }
+
+  const handleMentionClick = (type: string, id: string) => {
+    if (type === "person") router.push("/admin");
+    else if (type === "project") router.push("/projects");
+    else if (type === "file" || type === "folder") router.push(`/files?highlight=${encodeURIComponent(id)}`);
+    else if (type === "checkpoint") {
+      const el = document.getElementById(`checkpoint-${id}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      else router.push(`/checkpoints#${encodeURIComponent(id)}`);
+    }
+  };
+
+  const renderNote = (item: CheckpointItem) => {
+    if (item.contentJson) {
+      try {
+        const json = JSON.parse(item.contentJson);
+        const rendered = renderTiptapJsonToReact(json, handleMentionClick);
+        if (rendered) return <div className="mt-2.5 text-sm leading-relaxed text-charcoal">{rendered}</div>;
+      } catch {}
+    }
+    return <p className="mt-2.5 whitespace-pre-wrap text-sm leading-relaxed text-charcoal">{item.note}</p>;
+  };
 
   return (
-    <div className="flex flex-col gap-8 py-8">
-      {/* ── Composer ── */}
-      <form onSubmit={post} className="flex flex-col gap-3">
-        <textarea
-          ref={composerRef}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          onKeyDown={(e) => {
-            // Cmd/Ctrl+Enter posts, matching the convention everywhere else
-            // a multi-line composer exists.
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-              e.preventDefault();
-              e.currentTarget.form?.requestSubmit();
-            }
-          }}
-          rows={3}
-          maxLength={4000}
-          placeholder="What moved forward? Post a checkpoint for the team…"
-          className="w-full resize-y rounded-2xl border border-hairline bg-canvas px-4 py-3.5 text-[15px] leading-relaxed text-ink transition-colors placeholder:text-muted hover:border-stone focus:border-purple focus:outline-none"
-        />
-        <div className="flex items-center gap-3">
-          <Button type="submit" loading={posting} disabled={!note.trim()}>
-            Post checkpoint
-          </Button>
-          <span className="text-[12px] text-stone">
-            Visible to everyone in the workspace · ⌘↵ to post
-          </span>
-        </div>
-      </form>
-
-      {error && (
+    <div className="space-y-8">
+      {notice && (
         <p
           role="alert"
-          className="rounded-xl bg-error-bg px-4 py-3 text-[13px] text-error"
+          className="rounded-xl border border-amber-500/30 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900"
         >
-          {error}
+          {notice}
         </p>
       )}
 
-      {/* ── Timeline ── */}
-      {rows.length === 0 ? (
-        <p className="rounded-2xl border border-hairline-soft bg-fog px-5 py-8 text-center text-[14px] text-stone">
-          No checkpoints yet. The first one sets the timeline going.
+      {/* ── Form Card ── */}
+      <div className="rounded-2xl border border-hairline bg-canvas p-6 sm:p-8">
+        <h2 className="font-display text-xl font-bold tracking-tight text-ink">
+          Add a Checkpoint
+        </h2>
+        <p className="mt-1 text-sm text-steel">
+          Share a quick update or note on what you just completed or improved. Use @ to mention people, projects, files, or checkpoints.
         </p>
-      ) : (
-        <ol className="flex flex-col">
-          {rows.map((row, i) => {
-            const editing = editingId === row.id;
-            const pending = pendingId === row.id;
-            const edited = row.updatedAt !== row.createdAt;
-            return (
-              <li key={row.id} className="relative flex gap-4 pb-7">
-                {/* Timeline rail — omitted on the last row so it doesn't
-                    trail off past the final entry. */}
-                {i < rows.length - 1 && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute left-[19px] top-11 bottom-0 w-px bg-hairline-soft"
-                  />
-                )}
-                <UserAvatar
-                  displayName={row.displayName}
-                  email={row.userEmail}
-                  userId={row.userId}
-                  size={38}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                    <span className="text-[14px] font-semibold">
-                      {getDisplayName(row.displayName, row.userEmail)}
-                    </span>
-                    <span className="font-mono text-[11px] text-stone">
-                      {formatRelativeTime(row.createdAt)}
-                      {edited && " · edited"}
-                    </span>
-                    {canModify(row) && !editing && (
-                      <span className="ml-auto flex items-center gap-1">
-                        <button
-                          type="button"
-                          aria-label="Edit checkpoint"
-                          disabled={pending}
-                          onClick={() => {
-                            setEditingId(row.id);
-                            setEditText(row.note);
-                          }}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-stone transition-colors hover:bg-mist hover:text-ink disabled:opacity-50"
-                        >
-                          <PencilIcon className="h-[15px] w-[15px]" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Delete checkpoint"
-                          disabled={pending}
-                          onClick={() => remove(row.id)}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-stone transition-colors hover:bg-error-bg hover:text-error disabled:opacity-50"
-                        >
-                          <TrashIcon className="h-[15px] w-[15px]" />
-                        </button>
-                      </span>
-                    )}
-                  </div>
 
-                  {editing ? (
-                    <div className="mt-2 flex flex-col gap-2">
-                      <textarea
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        rows={3}
-                        maxLength={4000}
-                        className="w-full resize-y rounded-xl border border-hairline bg-canvas px-3.5 py-2.5 text-[14px] leading-relaxed focus:border-purple focus:outline-none"
-                      />
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          loading={pending}
-                          disabled={!editText.trim()}
-                          onClick={() => saveEdit(row.id)}
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="subtle"
-                          onClick={() => setEditingId(null)}
-                        >
-                          Cancel
-                        </Button>
+        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          <div>
+            <TiptapEditor
+              key={createKey}
+              placeholder="e.g. made landingpage of nomin smoother… @ to mention"
+              initialText={createInitial ?? undefined}
+              onChange={setCreateDraft}
+              onSubmit={(content) => {
+                setCreateDraft(content);
+                setTimeout(() => handleSubmit({ preventDefault: () => {} } as React.FormEvent), 0);
+              }}
+            />
+          </div>
+
+          {/* Preset Suggestions — preserved alongside Tiptap */}
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-stone">
+              Quick Suggestions
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {EXAMPLE_NOTES.map((example) => (
+                <button
+                  key={example}
+                  type="button"
+                  onClick={() => {
+                    const json = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: example }] }] };
+                    setCreateDraft({ text: example, json });
+                    setCreateInitial(example);
+                    setCreateKey((k) => k + 1);
+                    setTimeout(() => setCreateInitial(null), 0);
+                  }}
+                  className="rounded-lg border border-hairline bg-fog px-2.5 py-1 text-xs text-charcoal transition-colors hover:border-ink hover:bg-canvas"
+                >
+                  &ldquo;{example}&rdquo;
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-xs font-medium text-danger-text">{error}</p>
+          )}
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={isSubmitting || !createDraft?.text?.trim()}
+              className="press inline-flex h-10 items-center justify-center rounded-full bg-ink px-6 text-sm font-semibold text-white transition-colors hover:bg-charcoal disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSubmitting ? "Posting..." : "Post Checkpoint"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* ── Timeline Section ── */}
+      <div className="rounded-2xl border border-hairline bg-canvas p-6 sm:p-8">
+        <div className="flex items-center justify-between border-b border-hairline-soft pb-4">
+          <h2 className="font-display text-xl font-bold tracking-tight text-ink">
+            Timeline
+          </h2>
+          <span className="font-mono text-xs uppercase tracking-[0.18em] text-steel">
+            {items.length} {items.length === 1 ? "entry" : "entries"}
+          </span>
+        </div>
+
+        {items.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="font-display text-lg font-medium text-charcoal">
+              No checkpoints recorded yet
+            </p>
+            <p className="mt-1 text-sm text-steel">
+              Be the first to post a milestone or progress note for the team!
+            </p>
+          </div>
+        ) : (
+          <div className="relative mt-6 space-y-6 pl-4 sm:pl-6 before:absolute before:bottom-3 before:left-[15px] before:top-3 before:w-[2px] before:bg-hairline-soft sm:before:left-[23px]">
+            {items.map((item) => {
+              const primary = getDisplayName(item.displayName, item.userEmail);
+              const secondary = item.userEmail;
+              const isEditing = editingId === item.id;
+              const isDeleting = deletingId === item.id;
+              const edited =
+                item.updatedAt &&
+                item.createdAt &&
+                new Date(item.updatedAt).getTime() >
+                  new Date(item.createdAt).getTime() + 1000;
+
+              return (
+                <div key={item.id} id={`checkpoint-${item.id}`} className="relative flex items-start gap-4">
+                  {/* Timeline avatar — deterministic color from stable userId/email, display name */}
+                  <span className="relative z-10 shrink-0 rounded-full shadow-sm ring-4 ring-canvas">
+                    <UserAvatar displayName={item.displayName} email={item.userEmail} userId={item.userId} avatarDriveId={item.avatarDriveId} size={40} />
+                  </span>
+
+                  {/* Content card — min-w-0 prevents flex overflow truncation like “Chira” */}
+                  <div className="min-w-0 flex-1 rounded-xl border border-hairline bg-fog/50 p-4 transition-colors hover:bg-fog">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline-soft/60 pb-2">
+                      <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                        <div className="flex flex-wrap items-center gap-2 min-w-0">
+                          <span className="break-words font-display text-[15px] font-bold tracking-tight text-ink">
+                            {primary}
+                          </span>
+                          <Badge tone={item.userRole === "admin" ? "phase" : "live"}>{item.userRole}</Badge>
+                        </div>
+                        <span className="break-all font-mono text-xs text-steel">{secondary}</span>
                       </div>
+                      <time className="font-mono text-[11px] uppercase tracking-[0.14em] text-stone">
+                        {formatDate(item.createdAt)}
+                        {edited && " · edited"}
+                      </time>
                     </div>
-                  ) : (
-                    <p className="mt-1.5 whitespace-pre-wrap text-[15px] leading-relaxed text-slate">
-                      {row.note}
-                    </p>
-                  )}
+                    {isEditing ? (
+                      <div className="mt-2.5 space-y-3">
+                        <TiptapEditor
+                          key={editKey}
+                          placeholder="Edit checkpoint… @ to mention"
+                          initialContentJson={item.contentJson ?? null}
+                          initialText={!item.contentJson ? item.note : undefined}
+                          onChange={setEditDraft}
+                          onSubmit={(content) => {
+                            setEditDraft(content);
+                            setTimeout(() => handleUpdate(item), 0);
+                          }}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingId(null);
+                              setEditDraft(null);
+                            }}
+                            disabled={isSaving}
+                            className="press inline-flex h-9 items-center justify-center rounded-full border border-hairline px-4 text-sm font-medium text-charcoal transition-colors hover:border-ink disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdate(item)}
+                            disabled={isSaving || !editDraft?.text?.trim()}
+                            className="press inline-flex h-9 items-center justify-center rounded-full bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-charcoal disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {isSaving ? "Saving..." : "Save"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      renderNote(item)
+                    )}
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs text-stone" />
+                      {canModerate(item) && !isEditing && (
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEditing(item)}
+                            disabled={isDeleting}
+                            className="press rounded-full border border-hairline px-3.5 py-1.5 text-xs font-medium text-steel transition-colors hover:border-ink hover:text-ink disabled:opacity-50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(item)}
+                            disabled={isDeleting}
+                            className="press rounded-full border border-hairline px-3.5 py-1.5 text-xs font-medium text-steel transition-colors hover:border-error hover:text-error disabled:opacity-50"
+                          >
+                            {isDeleting ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </li>
-            );
-          })}
-        </ol>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

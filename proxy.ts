@@ -3,29 +3,35 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 /**
- * Route protection for every path except the public ones.
+ * Protect every route except sign-in / sign-up / setup
+ * (and NextAuth + setup APIs + static assets).
  * Unauthenticated visitors are redirected to /signin.
  *
- * Next.js 16 renamed the `middleware` convention to `proxy`: the file is
- * `proxy.ts`, the exported function is `proxy`, and the runtime is always
- * Node.js (the edge runtime is not supported here and cannot be
- * configured). This is a short-lived check that reads the JWT only — it
- * never touches the database, so it adds no latency per request.
+ * Runs on the Edge as a short-lived check (reads the JWT, no DB call) —
+ * fully compatible with Vercel serverless.
  *
- * The real authorization happens server-side in `lib/session.ts`, which
- * re-reads the user row on every protected page and route. This proxy is
- * a redirect for signed-out visitors, not the security boundary: a token
- * for a deleted account still gets past here and is rejected there.
- *
- * On env: this never hard-fails when NEXTAUTH_SECRET is missing, because
- * that would brick every request on a deployment whose env is merely
- * mid-rollout. It logs loudly and lets the request through to the Node
- * layer, where `lib/auth.ts` enforces the same variables with a live read
- * and NextAuth actually consumes the secret. Public paths skip even the
- * logging, so the first-run wizard works before any env var exists.
+ * NOTE on env checks: this file runs on the Edge Runtime (all of
+ * `middleware.ts` does — no `runtime` export needed). The Edge code ships
+ * as a prebuilt bundle (`server/edge/chunks/...`, see
+ * `middleware-manifest.json`), and its `process.env` snapshot is coupled
+ * to the deployment's BUILD — e.g. redeploying with a cached/stale build,
+ * or adding a variable in the dashboard after the Edge bundle was built,
+ * can leave Edge seeing a variable as missing even though the dashboard
+ * lists it and Node serverless functions (which read env live per
+ * invocation) see it fine. A `throw` here therefore bricks EVERY protected
+ * request on an env-visibility problem that isn't real. So Edge NEVER
+ * hard-fails on env: it logs loudly and lets the request through to the
+ * Node layer, where `lib/auth.ts` (`requireNextAuthSecret`) enforces the
+ * same variables with a live runtime read — that is also where NextAuth
+ * actually consumes the secret. Public paths (/signin, /setup,
+ * /api/auth/*, /api/setup/*) skip even the logging so the first-run
+ * wizard works before env is set. Build phase (`NEXT_PHASE`) also skips,
+ * so `next build` succeeds without live env.
  */
 
-const protectedAuth = withAuth({ pages: { signIn: "/signin" } });
+const protectedAuth = withAuth({
+  pages: { signIn: "/signin" },
+});
 
 function isBuildPhase(): boolean {
   return process.env.NEXT_PHASE === "phase-production-build";
@@ -37,51 +43,46 @@ function isPublicPath(pathname: string): boolean {
     pathname.startsWith("/signin/") ||
     pathname === "/setup" ||
     pathname.startsWith("/setup/") ||
-    // Every /api route authenticates itself (see the note on `config`).
-    pathname.startsWith("/api/")
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/setup") ||
+    // Tag Along is a public, unauthenticated learning page — must be deployable on Vercel without login
+    pathname === "/tag-along" ||
+    pathname.startsWith("/tag-along/") ||
+    pathname === "/tag-along.html"
   );
 }
 
-export function proxy(req: NextRequest, ...rest: unknown[]) {
+export default function middleware(req: NextRequest, ...rest: unknown[]) {
   if (isBuildPhase() || isPublicPath(req.nextUrl.pathname)) {
     return NextResponse.next();
   }
-  if (!process.env.NEXTAUTH_SECRET) {
-    console.error(
-      "[proxy] NEXTAUTH_SECRET is not visible here — passing through to the Node layer, which enforces it."
-    );
+  // Vercel Cron (nightly chat archive) carries no user session — let its
+  // credentialed GET through to the route, which re-verifies CRON_SECRET
+  // itself. Anything without cron credentials still hits auth below.
+  if (
+    req.nextUrl.pathname === "/api/chat/archive" &&
+    req.method === "GET" &&
+    (req.headers.get("x-vercel-cron") === "1" ||
+      (req.headers.get("authorization") || "").startsWith("Bearer "))
+  ) {
+    return NextResponse.next();
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (protectedAuth as any)(req, ...rest);
 }
 
-export default proxy;
-
 export const config = {
   matcher: [
     /*
-     * Page routes only. Excluded:
-     * - /signin, /setup (public pages)
-     * - /api/*          (see below)
+     * Match all paths except:
+     * - /signin, /setup, /tag-along (public pages)
+     * - /api/auth/* (NextAuth handler)
+     * - /api/setup/* (first-run wizard APIs)
      * - Next.js internals and static files
      *
-     * WHY /api IS EXCLUDED, AND THE RULE THAT COMES WITH IT:
-     * withAuth answers an unauthenticated request with a 307 to the HTML
-     * sign-in page. That is right for a navigation and wrong for a fetch —
-     * the client would follow the redirect, receive HTML, and fail parsing
-     * it as JSON, reporting a parse error instead of "not signed in". So
-     * API routes are left to guard themselves and answer 401/403 JSON.
-     *
-     * The rule: EVERY route under /api must call requireApiSession() or
-     * requireApiAdmin() as its first statement, unless it is deliberately
-     * public (/api/auth/* is NextAuth itself; /api/setup/* is the one-time
-     * wizard, which self-disables once any account exists). A new route
-     * that forgets the guard is public — nothing here will catch it.
-     *
-     * There is intentionally no public /signup: the first account comes
-     * from /setup or the seed script, and every other one from an admin
-     * at /admin.
+     * NOTE: there is intentionally no public /signup — accounts are created
+     * by admins (/admin) or once via the setup wizard (/setup).
      */
-    "/((?!api/|setup|signin|_next/static|_next/image|favicon.ico|.*\\..*).*)",
+    "/((?!api/auth|api/setup|setup|signin|tag-along|_next/static|_next/image|favicon.ico|.*\\..*|public).*)",
   ],
 };

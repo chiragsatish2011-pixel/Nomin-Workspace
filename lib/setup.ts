@@ -1,5 +1,3 @@
-import "server-only";
-
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { neon } from "@neondatabase/serverless";
@@ -10,16 +8,13 @@ import { drizzle } from "drizzle-orm/neon-http";
  * First-run setup helpers (SERVER ONLY — never import from client code).
  *
  * Everything the /setup wizard needs: probe whether the workspace is ready,
- * test a pasted database URL, create the tables, and — in local dev only —
- * persist DATABASE_URL to `.env.local`, so the first owner never has to
- * touch a terminal or an env dashboard.
- *
- * This module deliberately does NOT import `@/db` or `@/lib/auth`: the
- * wizard has to work on step 1, before any env var exists.
+ * test a pasted database URL, create the tables, create the first (admin)
+ * account, and — in local dev only — persist DATABASE_URL to `.env.local`
+ * so the owner never touches a terminal or an env dashboard.
  */
 
 export interface SetupStatus {
-  /** A DATABASE_URL string is configured (it may still be unreachable). */
+  /** A DATABASE_URL string is configured (may still be unreachable). */
   configured: boolean;
   /** The configured URL actually connects. */
   reachable: boolean;
@@ -28,11 +23,12 @@ export interface SetupStatus {
   /** At least one admin account exists. */
   admin: boolean;
   /**
-   * True once ANY user exists. This is the self-disable switch for the
-   * one-time wizard — see getSetupStatus() below.
+   * True once ANY user exists (SELECT COUNT(*) FROM users > 0).
+   * This is the self-disable switch for the one-time /setup wizard —
+   * see getSetupStatus() below.
    */
   hasUsers: boolean;
-  /** True in production — file writes are refused there. */
+  /** True on Vercel / production builds — file writes are refused there. */
   isProduction: boolean;
 }
 
@@ -42,17 +38,22 @@ export function isProduction(): boolean {
 
 function clientFor(url: string) {
   return drizzle(
-    neon(url, { fetchOptions: { signal: AbortSignal.timeout(12000) } })
+    neon(url, {
+      fetchOptions: { signal: AbortSignal.timeout(12000) },
+    })
   );
 }
 
 type Row = Record<string, unknown>;
 
-async function probeRows(url: string, statement: string): Promise<Row[] | null> {
+async function probeRows(
+  url: string,
+  statement: string
+): Promise<Row[] | null> {
   try {
     const res = (await clientFor(url).execute(sql.raw(statement))) as unknown;
-    // drizzle's execute() shape varies (a bare rows array vs. a result
-    // object with `.rows`) depending on driver and bundler — accept both.
+    // drizzle's execute() shape varies (bare rows array vs. full result
+    // object with `.rows`) depending on driver/bundler — accept both.
     const rows = Array.isArray(res)
       ? (res as Row[])
       : ((res as { rows?: unknown }).rows ?? null);
@@ -82,20 +83,21 @@ export async function getSetupStatus(): Promise<SetupStatus> {
   if (!(await testDatabaseUrl(url))) return status;
   status.reachable = true;
 
-  const tbl = await probeRows(url, "SELECT to_regclass('public.users') AS tbl");
+  const tbl = await probeRows(
+    url,
+    "SELECT to_regclass('public.users') AS tbl"
+  );
   if (!tbl?.[0]?.tbl) return status;
   status.tables = true;
 
   // ONE-TIME SETUP GATE — this is NOT a public sign-up path.
-  //
-  // The wizard exists only to bootstrap the very first account on a fresh
-  // database. The moment ANY user exists, /setup self-disables permanently
-  // and redirects to /signin — even for someone who knows the URL — so it
-  // can never hijack a live workspace or be abused as open registration.
-  //
-  // The lock is COUNT(*) over all users, not just admins: deleting the
-  // admin, or leaving only members, still keeps setup closed. `admin` is
-  // tracked separately purely for display ("does an owner exist?").
+  // The /setup wizard exists only to bootstrap the very first account on a
+  // fresh database (zero users). The moment ANY user exists (COUNT(*) > 0),
+  // /setup must self-disable permanently and redirect to /signin — even if
+  // someone knows the URL — so it can never hijack a live workspace or be
+  // abused as open registration. We check COUNT(*) (any user), not just
+  // admins, so deleting the admin or leaving only members still keeps setup
+  // locked. `admin` is kept separately for dashboard UX (owner exists?).
   const cnt = await probeRows(url, "SELECT COUNT(*) AS cnt FROM users");
   const rawCnt = cnt?.[0]?.cnt;
   const count =
@@ -111,92 +113,91 @@ export async function getSetupStatus(): Promise<SetupStatus> {
     "SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin') AS adm"
   );
   status.admin = adm?.[0]?.adm === true;
+  // Belt-and-braces: if any user exists but the admin check misfires,
+  // treat setup as done — never leave the wizard open on a live DB.
+  if (status.hasUsers) {
+    // `admin` stays as queried for display; `hasUsers` is the lock.
+  }
   return status;
 }
 
-/**
- * Mirrors `drizzle/0000_init.sql`, hardened to be safely re-runnable. Used
- * only when the migration files aren't readable at runtime (some serverless
- * bundlers drop non-imported files from the deployment).
- */
+/** Mirrors drizzle/0000 + 0001 + 0003, hardened to be safely re-runnable. */
 const EMBEDDED_BOOTSTRAP = [
   `CREATE EXTENSION IF NOT EXISTS "pgcrypto"`,
   `DO $$ BEGIN CREATE TYPE "public"."role" AS ENUM('admin', 'member'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
-  `DO $$ BEGIN CREATE TYPE "public"."conversation_type" AS ENUM('direct', 'group'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   `CREATE TABLE IF NOT EXISTS "users" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"email" text NOT NULL,
 	"password_hash" text NOT NULL,
 	"role" "role" DEFAULT 'member' NOT NULL,
 	"display_name" text,
+	"avatar_drive_id" text,
+	"avatar_file_name" text,
+	"has_completed_onboarding" boolean DEFAULT false NOT NULL,
 	"department" text,
 	"job_title" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "users_email_unique" UNIQUE("email")
-)`,
+);`,
   `CREATE TABLE IF NOT EXISTS "checkpoints" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL REFERENCES "public"."users"("id") ON DELETE cascade,
 	"note" text NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-)`,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);`,
   `CREATE TABLE IF NOT EXISTS "projects" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL REFERENCES "public"."users"("id") ON DELETE cascade,
 	"title" text NOT NULL,
 	"description" text NOT NULL,
+	"codebase_drive_id" text NOT NULL,
+	"codebase_file_name" text NOT NULL,
+	"codebase_file_size" text NOT NULL,
+	"preview_drive_id" text,
+	"preview_file_name" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-)`,
-  `CREATE TABLE IF NOT EXISTS "conversations" (
+);`,
+  `DO $$ BEGIN CREATE TYPE "call_type" AS ENUM('voice', 'video'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+  `DO $$ BEGIN CREATE TYPE "call_context" AS ENUM('standalone', 'project', 'checkpoint'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+  `CREATE TABLE IF NOT EXISTS "calls" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"type" "conversation_type" NOT NULL,
-	"name" text,
+	"type" "call_type" NOT NULL,
+	"context" "call_context" DEFAULT 'standalone' NOT NULL,
+	"context_id" text,
+	"daily_room_name" text NOT NULL UNIQUE,
+	"daily_room_url" text NOT NULL,
 	"created_by" uuid REFERENCES "public"."users"("id") ON DELETE set null,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-)`,
-  `CREATE TABLE IF NOT EXISTS "conversation_participants" (
-	"conversation_id" uuid NOT NULL REFERENCES "public"."conversations"("id") ON DELETE cascade,
-	"user_id" uuid NOT NULL REFERENCES "public"."users"("id") ON DELETE cascade,
-	"joined_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"last_read_at" timestamp with time zone
-)`,
+	"expires_at" timestamp with time zone NOT NULL
+);`,
   `CREATE TABLE IF NOT EXISTS "chat_messages" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"conversation_id" uuid NOT NULL REFERENCES "public"."conversations"("id") ON DELETE cascade,
 	"user_id" uuid NOT NULL REFERENCES "public"."users"("id") ON DELETE cascade,
 	"content" text NOT NULL,
-	"edited_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-)`,
-  `CREATE TABLE IF NOT EXISTS "files" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_id" uuid NOT NULL REFERENCES "public"."users"("id") ON DELETE cascade,
-	"name" text NOT NULL,
-	"parent_id" uuid,
-	"is_folder" boolean DEFAULT false NOT NULL,
-	"size_bytes" text,
-	"mime_type" text,
-	"storage_key" text,
+	"content_json" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-)`,
-  `CREATE INDEX IF NOT EXISTS "checkpoints_user_id_idx" ON "checkpoints" ("user_id")`,
-  `CREATE INDEX IF NOT EXISTS "checkpoints_created_at_idx" ON "checkpoints" ("created_at")`,
-  `CREATE INDEX IF NOT EXISTS "projects_user_id_idx" ON "projects" ("user_id")`,
-  `CREATE INDEX IF NOT EXISTS "projects_created_at_idx" ON "projects" ("created_at")`,
-  `CREATE INDEX IF NOT EXISTS "conversation_participants_user_idx" ON "conversation_participants" ("user_id")`,
-  `CREATE INDEX IF NOT EXISTS "chat_messages_conversation_idx" ON "chat_messages" ("conversation_id")`,
-  `CREATE INDEX IF NOT EXISTS "chat_messages_user_id_idx" ON "chat_messages" ("user_id")`,
-  `CREATE INDEX IF NOT EXISTS "files_parent_idx" ON "files" ("parent_id")`,
-  `CREATE INDEX IF NOT EXISTS "files_user_id_idx" ON "files" ("user_id")`,
+);`,
+  `CREATE TABLE IF NOT EXISTS "scheduled_meetings" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"title" text NOT NULL,
+	"organizer_id" uuid NOT NULL REFERENCES "public"."users"("id") ON DELETE cascade,
+	"start_time" timestamp with time zone NOT NULL,
+	"duration_minutes" integer DEFAULT 30 NOT NULL,
+	"call_type" "call_type" NOT NULL,
+	"rrule" text,
+	"invitee_ids" text DEFAULT '[]' NOT NULL,
+	"project_id" uuid REFERENCES "public"."projects"("id") ON DELETE set null,
+	"excluded_dates" text DEFAULT '[]' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);`,
 ];
 
 async function loadBootstrapStatements(): Promise<string[]> {
-  // Apply every migration file in order, so databases created by the wizard
-  // land on the current schema even as new migrations are added later.
+  // Apply every migration file in order, so fresh wizard databases always
+  // end up on the current schema even as new migrations are added.
   try {
     const dir = path.join(process.cwd(), "drizzle");
     const files = (await readdir(dir))
@@ -212,25 +213,97 @@ async function loadBootstrapStatements(): Promise<string[]> {
     }
     if (parts.length > 0) return parts;
   } catch {
-    /* files not bundled (e.g. serverless) — fall through to the embedded copy */
+    /* files not bundled (e.g. serverless) — fall through to embedded copy */
   }
   return EMBEDDED_BOOTSTRAP;
 }
 
 /**
- * Create the tables. Returns `already: true` without writing when they
- * already exist, so hitting this twice — or by accident — can never
- * clobber live data.
+ * Create the tables. Refuses when they already exist (idempotent guard),
+ * so hitting this twice — or by accident — can never wipe data.
  */
 export async function runBootstrap(
   url: string
 ): Promise<{ applied: boolean; already: boolean }> {
-  const tbl = await probeRows(url, "SELECT to_regclass('public.users') AS tbl");
-  if (tbl?.[0]?.tbl) return { applied: false, already: true };
+  const tbl = await probeRows(
+    url,
+    "SELECT to_regclass('public.users') AS tbl"
+  );
+  if (tbl?.[0]?.tbl) {
+    // Table already exists — ensure new profile/onboarding columns exist
+    // (added after initial launch). IF NOT EXISTS makes this safe to re-run.
+    const db = clientFor(url);
+    const alters = [
+      `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "display_name" text`,
+      `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_drive_id" text`,
+      `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_file_name" text`,
+      `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "has_completed_onboarding" boolean DEFAULT false NOT NULL`,
+      `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "department" text`,
+      `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "job_title" text`,
+      `DO $$ BEGIN CREATE TYPE "call_type" AS ENUM('voice', 'video'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+      `DO $$ BEGIN CREATE TYPE "call_context" AS ENUM('standalone', 'project', 'checkpoint'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+      `CREATE TABLE IF NOT EXISTS "calls" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"type" "call_type" NOT NULL,
+	"context" "call_context" DEFAULT 'standalone' NOT NULL,
+	"context_id" text,
+	"daily_room_name" text NOT NULL UNIQUE,
+	"daily_room_url" text NOT NULL,
+	"created_by" uuid REFERENCES "public"."users"("id") ON DELETE set null,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL
+)`,
+      `CREATE TABLE IF NOT EXISTS "chat_messages" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" uuid NOT NULL REFERENCES "public"."users"("id") ON DELETE cascade,
+	"content" text NOT NULL,
+	"content_json" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);`,
+      `CREATE TABLE IF NOT EXISTS "scheduled_meetings" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"title" text NOT NULL,
+	"organizer_id" uuid NOT NULL REFERENCES "public"."users"("id") ON DELETE cascade,
+	"start_time" timestamp with time zone NOT NULL,
+	"duration_minutes" integer DEFAULT 30 NOT NULL,
+	"call_type" "call_type" NOT NULL,
+	"rrule" text,
+	"invitee_ids" text DEFAULT '[]' NOT NULL,
+	"project_id" uuid REFERENCES "public"."projects"("id") ON DELETE set null,
+	"excluded_dates" text DEFAULT '[]' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);`,
+      `CREATE TABLE IF NOT EXISTS "message_reactions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"message_id" uuid NOT NULL REFERENCES "public"."chat_messages"("id") ON DELETE cascade,
+	"user_id" uuid NOT NULL REFERENCES "public"."users"("id") ON DELETE cascade,
+	"emoji" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS "message_reactions_message_user_unique" ON "message_reactions" ("message_id", "user_id")`,
+      `CREATE INDEX IF NOT EXISTS "projects_user_id_idx" ON "projects" ("user_id")`,
+      `CREATE INDEX IF NOT EXISTS "projects_created_at_idx" ON "projects" ("created_at" DESC)`,
+      `CREATE INDEX IF NOT EXISTS "chat_messages_user_id_idx" ON "chat_messages" ("user_id")`,
+      `CREATE INDEX IF NOT EXISTS "calls_created_by_idx" ON "calls" ("created_by")`,
+      `CREATE INDEX IF NOT EXISTS "calls_expires_at_idx" ON "calls" ("expires_at")`,
+      `CREATE INDEX IF NOT EXISTS "scheduled_meetings_organizer_idx" ON "scheduled_meetings" ("organizer_id")`,
+      `CREATE INDEX IF NOT EXISTS "scheduled_meetings_start_time_idx" ON "scheduled_meetings" ("start_time")`,
+    ];
+    for (const stmt of alters) {
+      try {
+        await db.execute(sql.raw(stmt));
+      } catch {
+        /* ignore — column may already exist or permission issue will surface elsewhere */
+      }
+    }
+    return { applied: false, already: true };
+  }
 
-  const client = clientFor(url);
+  const db = clientFor(url);
   for (const stmt of await loadBootstrapStatements()) {
-    await client.execute(sql.raw(stmt));
+    await db.execute(sql.raw(stmt));
   }
   return { applied: true, already: false };
 }
@@ -241,13 +314,15 @@ function escapeEnvValue(value: string): string {
 
 /**
  * Persist keys to `.env.local` (LOCAL DEV ONLY — refused in production,
- * where env vars belong in the host's dashboard). Next.js reloads
+ * where env vars belong in the Vercel dashboard). Next.js reloads
  * `.env.local` automatically, so the wizard just polls status afterwards.
  */
-export async function saveDevEnv(vars: Record<string, string>): Promise<void> {
+export async function saveDevEnv(
+  vars: Record<string, string>
+): Promise<void> {
   if (isProduction()) {
     throw new Error(
-      "Cannot write env files in production. Set the variables in your host's dashboard instead."
+      "Cannot write env files in production. Set variables in the Vercel dashboard instead."
     );
   }
   const file = path.join(process.cwd(), ".env.local");
@@ -255,7 +330,8 @@ export async function saveDevEnv(vars: Record<string, string>): Promise<void> {
   try {
     content = await readFile(file, "utf8");
   } catch {
-    content = "# Nomin Workspace · local dev (written by the /setup wizard)\n";
+    content =
+      "# Nomin Workspace · local dev (written by the /setup wizard)\n";
   }
   if (content.length > 0 && !content.endsWith("\n")) content += "\n";
   for (const [key, value] of Object.entries(vars)) {

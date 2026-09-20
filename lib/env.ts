@@ -4,20 +4,22 @@ import "server-only";
  * Central environment-variable validation (SERVER ONLY).
  *
  * Why this file exists: a missing DATABASE_URL / NEXTAUTH_SECRET /
- * NEXTAUTH_URL otherwise surfaces as a generic 500 deep inside some route,
- * or as a build warning that is easy to miss. These helpers fail fast with
- * a loud message naming exactly which variable is missing.
+ * NEXTAUTH_URL used to surface as a generic 500 deep inside some route,
+ * or — worse — as a build-time warning that was easy to miss. These
+ * helpers fail fast with a loud, actionable message naming exactly which
+ * variable is missing.
  *
- * Build safety: `next build` must succeed before env vars are set (CI,
- * fresh clone, a host's build step). During the build phase
+ * Build safety: `next build` must succeed even before env vars are set
+ * (CI, fresh clone, Vercel build step). During the build phase
  * (`NEXT_PHASE === "phase-production-build"`) the helpers return a
- * placeholder instead of throwing. At runtime they throw immediately.
+ * placeholder instead of throwing. At runtime (dev, `next start`,
+ * Vercel serverless) they throw immediately.
  *
- * Setup-wizard safety: /setup intentionally runs WITHOUT a database (step 1
- * collects DATABASE_URL), so nothing here throws for DATABASE_URL at import
- * time — `db` throws lazily on first real query and /api/setup/* answer
- * structured 503s. The NEXTAUTH checks live in `lib/auth.ts`, which /setup
- * never imports.
+ * Setup-wizard safety: the /setup flow intentionally runs WITHOUT a
+ * database (step 1 collects DATABASE_URL). So global startup checks must
+ * NOT throw for DATABASE_URL — instead, `db` throws lazily on first real
+ * query, and /api/setup/* return structured 503s. NEXTAUTH checks live in
+ * `lib/auth.ts` / `middleware.ts`, which /setup never imports.
  */
 
 export function isBuildPhase(): boolean {
@@ -28,18 +30,20 @@ function isMissing(value: string | undefined): boolean {
   return !value || value.trim().length === 0;
 }
 
-const HINT =
-  "Add it to .env.local for local development, or to your host's Environment Variables settings for this environment.";
+const VERCEL_HINT =
+  "Add it in Vercel's Environment Variables settings for this environment.";
 
 export function requireDatabaseUrl(): string {
   const url = process.env.DATABASE_URL;
   if (isMissing(url)) {
     if (isBuildPhase()) {
-      // Placeholder keeps `next build` working without a live database.
-      // Never used for real queries.
+      // Placeholder keeps `next build` / static analysis working without a
+      // live database. Never used for real queries.
       return "postgresql://placeholder:placeholder@localhost:5432/placeholder";
     }
-    throw new Error(`DATABASE_URL is not set. ${HINT}`);
+    throw new Error(
+      `DATABASE_URL is not set. ${VERCEL_HINT}`
+    );
   }
   return url as string;
 }
@@ -48,11 +52,13 @@ export function requireNextAuthSecret(): string {
   const secret = process.env.NEXTAUTH_SECRET;
   if (isMissing(secret)) {
     if (isBuildPhase()) {
-      // Only lets `next build` collect routes. Real sessions are never
-      // signed with this.
+      // Long placeholder — only to let `next build` collect routes.
+      // Real sessions are never signed with this.
       return "build-phase-placeholder-secret-please-set-nextauth-secret-32-chars-min";
     }
-    throw new Error(`NEXTAUTH_SECRET is not set. ${HINT}`);
+    throw new Error(
+      `NEXTAUTH_SECRET is not set. ${VERCEL_HINT}`
+    );
   }
   return secret as string;
 }
@@ -60,11 +66,188 @@ export function requireNextAuthSecret(): string {
 export function requireNextAuthUrl(): string {
   const url = process.env.NEXTAUTH_URL;
   if (isMissing(url)) {
-    if (isBuildPhase()) return "http://localhost:3000";
-    // Hosts that inject VERCEL_URL let NextAuth auto-detect the origin, so
-    // an explicit NEXTAUTH_URL is genuinely optional there.
-    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-    throw new Error(`NEXTAUTH_URL is not set. ${HINT}`);
+    if (isBuildPhase()) {
+      return "http://localhost:3000";
+    }
+    // NOTE: NextAuth can auto-detect Vercel preview URLs from request
+    // headers, but we require an explicit value so a missing variable can
+    // never silently break callbacks. Set it to your deployed URL
+    // (e.g. https://YOUR-APP.vercel.app) in Vercel's dashboard.
+    throw new Error(
+      `NEXTAUTH_URL is not set. ${VERCEL_HINT}`
+    );
+  }
+  // Validity: next-auth parses this with `new URL()` at module scope
+  // (next-auth/react, imported by app/providers.tsx:3), so a value with an
+  // internal space or other illegal host character throws ERR_INVALID_URL
+  // during prerender/SSR. Mirror next-auth's own rule (prepend https://
+  // when no scheme) and fail here with the offending value named — far
+  // clearer than the deep prerender trace. Unlike a missing value (which
+  // keeps a build-phase placeholder for CI/setup flows), a malformed value
+  // is never usable, so this throws in every phase.
+  try {
+    const candidate =
+      (url as string).startsWith("http") ? (url as string) : `https://${url}`;
+    new URL(candidate);
+  } catch {
+    throw new Error(
+      `NEXTAUTH_URL is malformed (${JSON.stringify(url)}). It must be a valid URL like https://your-app.vercel.app with no spaces or extra characters. Fix it in Vercel's Environment Variables settings for this environment.`
+    );
   }
   return url as string;
+}
+
+/**
+ * Validate all three at once — useful for API routes and auth paths that
+ * need both a database and sessions. Throws the first missing variable.
+ * NOT for /setup or build-time code (see note above).
+ */
+export function assertRequiredEnv(): {
+  databaseUrl: string;
+  nextAuthSecret: string;
+  nextAuthUrl: string;
+} {
+  const databaseUrl = requireDatabaseUrl();
+  const nextAuthSecret = requireNextAuthSecret();
+  const nextAuthUrl = requireNextAuthUrl();
+  return { databaseUrl, nextAuthSecret, nextAuthUrl };
+}
+
+/**
+ * Google Drive backend variables (SERVER ONLY — never NEXT_PUBLIC_).
+ *
+ * Enforced ONLY at the Drive layer: every /api/drive/* route and the
+ * /admin/drive-setup OAuth flow calls these first, so a missing value
+ * fails loudly naming exactly which variable is absent. They are NOT
+ * checked globally at startup — the rest of the workspace (sign-in,
+ * dashboard, /setup) must keep working before Drive is configured.
+ * During `next build` they return placeholders so route collection
+ * succeeds without live credentials.
+ */
+export function requireGoogleClientId(): string {
+  const v = process.env.GOOGLE_CLIENT_ID;
+  if (isMissing(v)) {
+    if (isBuildPhase()) return "build-phase-placeholder-google-client-id";
+    throw new Error(
+      `GOOGLE_CLIENT_ID is not set. ${VERCEL_HINT}`
+    );
+  }
+  return v as string;
+}
+
+export function requireGoogleClientSecret(): string {
+  const v = process.env.GOOGLE_CLIENT_SECRET;
+  if (isMissing(v)) {
+    if (isBuildPhase()) return "build-phase-placeholder-google-client-secret";
+    throw new Error(
+      `GOOGLE_CLIENT_SECRET is not set. ${VERCEL_HINT}`
+    );
+  }
+  return v as string;
+}
+
+export function requireGoogleDriveRefreshToken(): string {
+  const v = process.env.GOOGLE_DRIVE_REFRESH_TOKEN;
+  if (isMissing(v)) {
+    if (isBuildPhase()) return "build-phase-placeholder-google-refresh-token";
+    throw new Error(
+      `GOOGLE_DRIVE_REFRESH_TOKEN is not set. ${VERCEL_HINT} Complete the one-time setup at Admin → Drive setup first.`
+    );
+  }
+  return v as string;
+}
+
+export function requireGoogleDriveUploadFolderId(): string {
+  const v = process.env.GOOGLE_DRIVE_UPLOAD_FOLDER_ID;
+  if (isMissing(v)) {
+    if (isBuildPhase()) return "build-phase-placeholder-google-folder-id";
+    throw new Error(
+      `GOOGLE_DRIVE_UPLOAD_FOLDER_ID is not set. ${VERCEL_HINT} Set it to your designated Google Drive folder ID.`
+    );
+  }
+  return v as string;
+}
+
+/**
+ * Shared Google OAuth credentials (Drive + Sheets).
+ *
+ * BOTH features reuse the SAME OAuth client and refresh token (GOOGLE_CLIENT_ID
+ * / GOOGLE_CLIENT_SECRET / GOOGLE_DRIVE_REFRESH_TOKEN and GOOGLE_SCOPES which
+ * includes DRIVE + SHEETS). This helper validates ONLY those shared pieces.
+ *
+ * Intentionally does NOT check GOOGLE_DRIVE_UPLOAD_FOLDER_ID — that variable
+ * belongs SOLELY to the Drive file/folder-upload feature (project files,
+ * codebases, locked-folder uploads). Checkpoints (Google Sheets) must use
+ * THIS helper, never assertDriveEnv, so a missing folder ID can never block
+ * the Checkpoints timeline (the bug this fixes).
+ */
+export function assertGoogleOAuthEnv(): {
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+} {
+  const clientId = requireGoogleClientId();
+  const clientSecret = requireGoogleClientSecret();
+  const refreshToken = requireGoogleDriveRefreshToken();
+  return { clientId, clientSecret, refreshToken };
+}
+
+/**
+ * Validate all Drive variables at once — ONLY for the Drive file-upload
+ * feature (project files, /api/drive/*, /api/projects). Throws the first
+ * missing. Do NOT use this for Checkpoints/Sheets; use assertGoogleOAuthEnv
+ * instead so checkpoints stay decoupled from the upload folder.
+ */
+export function assertDriveEnv(): {
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+  folderId: string;
+} {
+  const clientId = requireGoogleClientId();
+  const clientSecret = requireGoogleClientSecret();
+  const refreshToken = requireGoogleDriveRefreshToken();
+  const folderId = requireGoogleDriveUploadFolderId();
+  return { clientId, clientSecret, refreshToken, folderId };
+}
+
+
+/**
+ * Spreadsheet ID backing the Checkpoints timeline (SERVER ONLY).
+ *
+ * The "Checkpoints" Google Sheet is the real database for checkpoints —
+ * every create/update/delete flows through it (see lib/checkpoints-store.ts).
+ * It lives in the owner's Drive and is accessed with the SAME owner OAuth
+ * credentials as the Drive backend (lib/sheets.ts reuses the token
+ * exchange), so no separate service account exists. The ID comes from the
+ * sheet's URL (.../spreadsheets/d/<ID>/edit). Admin → Drive setup documents
+ * the one-time sheet creation.
+ */
+export function requireCheckpointsSpreadsheetId(): string {
+  const v = process.env.GOOGLE_SHEETS_CHECKPOINTS_ID;
+  if (isMissing(v)) {
+    if (isBuildPhase())
+      return "build-phase-placeholder-checkpoints-spreadsheet-id";
+    throw new Error(
+      `GOOGLE_SHEETS_CHECKPOINTS_ID is not set. ${VERCEL_HINT} Create the "Checkpoints" spreadsheet (steps live at Admin → Drive setup) and set this to its spreadsheet ID.`
+    );
+  }
+  // Trim: copy-paste from the browser routinely smuggles a trailing
+  // space/newline into Vercel env values, and Google 404s the padded ID
+  // ("Requested entity was not found") with no hint it was whitespace.
+  return (v as string).trim();
+}
+
+/**
+ * Daily.co API key (SERVER ONLY — never NEXT_PUBLIC_).
+ * One clear source of truth per credential; never expose to client.
+ * Room creation is via /api/calls/rooms (server) which reads this.
+ */
+export function requireDailyApiKey(): string {
+  const v = process.env.DAILY_API_KEY;
+  if (isMissing(v)) {
+    if (isBuildPhase()) return "build-phase-placeholder-daily-api-key";
+    throw new Error(`DAILY_API_KEY is not set. ${VERCEL_HINT} Get it from https://dashboard.daily.co/developers (API keys).`);
+  }
+  return (v as string).trim();
 }

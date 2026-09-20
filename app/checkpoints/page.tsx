@@ -1,70 +1,95 @@
-import { desc, eq } from "drizzle-orm";
-import { unstable_rethrow } from "next/navigation";
-import { db } from "@/db";
-import { checkpoints, users } from "@/db/schema";
+import { inArray } from "drizzle-orm";
 import { AppShell } from "@/components/AppShell";
-import {
-  CheckpointsList,
-  type CheckpointRow,
-} from "@/components/CheckpointsList";
-import { SectionHeader } from "@/components/SectionHeader";
-import { sectionByKey } from "@/components/sections";
+import { CheckpointsList } from "@/components/CheckpointsList";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { getCheckpoints } from "@/lib/checkpoints-store";
 import { requireActiveSession } from "@/lib/session";
 
-const section = sectionByKey("checkpoints");
-
-export const metadata = {
-  title: "Checkpoints · Nomin Workspace",
-  description: section.blurb,
-};
-
-// The timeline must reflect what was just posted, so this page is never
-// served from a cache.
 export const dynamic = "force-dynamic";
 
+/**
+ * /checkpoints — timeline backed by the "Checkpoints" Google Sheet
+ * (lib/checkpoints-store.ts). One sheet read per page load; the client
+ * only calls the API for create/update/delete. Auth stays on Neon.
+ * Avatar/profile wiring: sheet stores author snapshot (display_name) but
+ * NOT avatarDriveId — we enrich every entry from Neon users table so the
+ * profile pic system (Settings → Google Drive) actually shows in the Timeline,
+ * and initials/color are deterministic per user (email hash + current displayName).
+ */
 export default async function CheckpointsPage() {
   const user = await requireActiveSession();
 
-  // Read on the server for the first paint — the list renders complete,
-  // with no loading flash, and the client component takes over from there.
-  let initial: CheckpointRow[] = [];
-  let loadError: string | null = null;
+  let initialCheckpoints: Array<{
+    id: string;
+    note: string;
+    createdAt: string;
+    updatedAt: string;
+    userId: string;
+    userEmail: string;
+    userRole: "admin" | "member";
+    displayName: string | null;
+    avatarDriveId?: string | null;
+    contentJson?: string | null;
+  }> = [];
+  let notice: string | null = null;
+
   try {
-    const rows = await db
-      .select({
-        id: checkpoints.id,
-        note: checkpoints.note,
-        createdAt: checkpoints.createdAt,
-        updatedAt: checkpoints.updatedAt,
-        userId: checkpoints.userId,
-        displayName: users.displayName,
-        userEmail: users.email,
-      })
-      .from(checkpoints)
-      .innerJoin(users, eq(checkpoints.userId, users.id))
-      .orderBy(desc(checkpoints.createdAt))
-      .limit(200);
-    initial = rows.map((r) => ({
-      ...r,
-      createdAt: r.createdAt.toISOString(),
-      updatedAt: r.updatedAt.toISOString(),
-    }));
+    const raw = await getCheckpoints();
+    // Enrich from Neon: canonical displayName + avatarDriveId per userId.
+    // This wires the profile pic system into the Timeline and ensures
+    // initials (C vs CS) are consistent per user (same guy never shows
+    // two different initials) — snapshot displayName in Sheet is stale if
+    // user later updates profile.
+    try {
+      const ids = [...new Set(raw.map((r) => r.userId).filter(Boolean))];
+      if (ids.length > 0) {
+        const userRows = await db
+          .select({ id: users.id, displayName: users.displayName, avatarDriveId: users.avatarDriveId, email: users.email })
+          .from(users)
+          .where(inArray(users.id, ids));
+        const byId = new Map(userRows.map((u) => [u.id, u]));
+        initialCheckpoints = raw.map((r) => {
+          const u = byId.get(r.userId);
+          return {
+            ...r,
+            // Prefer canonical current displayName/avatar from users table; fall back to sheet snapshot
+            displayName: u?.displayName ?? r.displayName,
+            avatarDriveId: u?.avatarDriveId ?? null,
+            // keep email/role from sheet but ensure email canonical if available
+            userEmail: u?.email ?? r.userEmail,
+          };
+        });
+      } else {
+        initialCheckpoints = raw;
+      }
+    } catch (enrichErr) {
+      console.warn("[CheckpointsPage] enrich from users failed, using sheet snapshot:", enrichErr);
+      initialCheckpoints = raw;
+    }
   } catch (err) {
-    unstable_rethrow(err);
-    // A failed read must not take the whole page down: render the composer
-    // and say what happened, rather than throwing to the error boundary.
-    console.error("[checkpoints] initial load failed:", err);
-    loadError = "Couldn't load the timeline. Try refreshing the page.";
+    console.error("[CheckpointsPage] Error fetching initial checkpoints:", err);
+    if (user.role === "admin") {
+      const detail =
+        err instanceof Error && err.message
+          ? err.message
+          : "Unknown storage error.";
+      notice = `Checkpoints storage isn't reachable: ${detail} See Admin → Drive setup for the one-time sheet steps.`;
+    }
   }
 
   return (
-    <AppShell user={user} active="checkpoints">
-      <SectionHeader section={section} />
-      <CheckpointsList
-        initial={initial}
-        viewer={{ id: user.id, role: user.role }}
-        loadError={loadError}
-      />
+    <AppShell
+      user={{
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        displayName: user.displayName,
+        avatarDriveId: user.avatarDriveId,
+      }}
+      active="/checkpoints"
+    >
+      <CheckpointsList initialItems={initialCheckpoints} currentUser={{ id: user.id, role: user.role }} notice={notice} />
     </AppShell>
   );
 }

@@ -1,226 +1,206 @@
-import { desc, eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { checkpoints, users } from "@/db/schema";
+import { users } from "@/db/schema";
+import {
+  CheckpointForbiddenError,
+  CheckpointNotFoundError,
+  createCheckpoint,
+  deleteCheckpoint,
+  getCheckpoints,
+  updateCheckpoint,
+} from "@/lib/checkpoints-store";
 import { requireApiSession } from "@/lib/session";
+
+async function enrichCheckpoints<T extends { userId: string; displayName: string | null; userEmail: string; avatarDriveId?: string | null }>(
+  rows: T[]
+): Promise<(T & { avatarDriveId: string | null })[]> {
+  if (rows.length === 0) return rows as (T & { avatarDriveId: string | null })[];
+  const ids = [...new Set(rows.map((r) => r.userId).filter(Boolean))];
+  if (ids.length === 0) return rows as (T & { avatarDriveId: string | null })[];
+  try {
+    const userRows = await db
+      .select({ id: users.id, displayName: users.displayName, avatarDriveId: users.avatarDriveId, email: users.email })
+      .from(users)
+      .where(inArray(users.id, ids));
+    const byId = new Map(userRows.map((u) => [u.id, u]));
+    return rows.map((r) => {
+      const u = byId.get(r.userId);
+      return {
+        ...r,
+        displayName: u?.displayName ?? r.displayName,
+        userEmail: u?.email ?? r.userEmail,
+        avatarDriveId: u?.avatarDriveId ?? null,
+      } as T & { avatarDriveId: string | null };
+    });
+  } catch {
+    return rows as (T & { avatarDriveId: string | null })[];
+  }
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * /api/checkpoints — the team's shared progress timeline.
- *
- * Reads are workspace-wide: every signed-in member sees every checkpoint.
- * Writes are author-or-admin — the ownership check runs against the row in
- * the database, never against an id the client supplies, so a member can't
- * edit someone else's note by posting its id.
+ * /api/checkpoints — CRUD over the "Checkpoints" Google Sheet
+ * (lib/checkpoints-store.ts). Auth/session stays on Neon; the sheet is the
+ * checkpoints database. Update/delete are author-or-admin.
  */
 
-const UNAUTHORIZED = NextResponse.json(
-  { error: "Unauthorized" },
-  { status: 401 }
-);
-
-const MAX_NOTE_LENGTH = 4000;
-
-/** Joined shape the timeline renders: the note plus its author. */
-const CHECKPOINT_COLUMNS = {
-  id: checkpoints.id,
-  note: checkpoints.note,
-  createdAt: checkpoints.createdAt,
-  updatedAt: checkpoints.updatedAt,
-  userId: checkpoints.userId,
-  displayName: users.displayName,
-  userEmail: users.email,
-};
-
-async function readBody(req: Request): Promise<Record<string, unknown> | null> {
-  try {
-    const body = await req.json();
-    return body && typeof body === "object"
-      ? (body as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function validateNote(raw: unknown): { note: string } | { error: string } {
-  if (typeof raw !== "string") return { error: "Note content is required." };
-  const note = raw.trim();
-  if (!note) return { error: "Note content is required." };
-  if (note.length > MAX_NOTE_LENGTH) {
-    return { error: `Notes are limited to ${MAX_NOTE_LENGTH} characters.` };
-  }
-  return { note };
+function storeError(err: unknown): { error: string } {
+  console.error(
+    "[api/checkpoints] store error:",
+    err instanceof Error ? err.message : err
+  );
+  return {
+    error:
+      err instanceof Error && err.message
+        ? err.message
+        : "Checkpoints storage failed.",
+  };
 }
 
 export async function GET() {
   const user = await requireApiSession();
-  if (!user) return UNAUTHORIZED;
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   try {
-    const rows = await db
-      .select(CHECKPOINT_COLUMNS)
-      .from(checkpoints)
-      .innerJoin(users, eq(checkpoints.userId, users.id))
-      .orderBy(desc(checkpoints.createdAt))
-      .limit(200);
-    return NextResponse.json({ checkpoints: rows });
+    const raw = await getCheckpoints();
+    const checkpoints = await enrichCheckpoints(raw as unknown as { userId: string; displayName: string | null; userEmail: string; avatarDriveId?: string | null }[]);
+    return NextResponse.json({ checkpoints });
   } catch (err) {
-    console.error("[api/checkpoints] list failed:", err);
-    return NextResponse.json(
-      { error: "Couldn't load the timeline." },
-      { status: 500 }
-    );
+    return NextResponse.json(storeError(err), { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   const user = await requireApiSession();
-  if (!user) return UNAUTHORIZED;
-
-  const body = await readBody(req);
-  if (!body) {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
-  }
-  const validated = validateNote(body.note);
-  if ("error" in validated) {
-    return NextResponse.json({ error: validated.error }, { status: 400 });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const inserted = await db
-      .insert(checkpoints)
-      .values({ userId: user.id, note: validated.note })
-      .returning({
-        id: checkpoints.id,
-        note: checkpoints.note,
-        createdAt: checkpoints.createdAt,
-        updatedAt: checkpoints.updatedAt,
-        userId: checkpoints.userId,
-      });
+    const body = await req.json();
+    // Support both plain note and structured Tiptap JSON (for @mentions)
+    const noteRaw = typeof body.note === "string" ? body.note : typeof body.content === "string" ? body.content : "";
+    const note = noteRaw.trim();
+    const contentJsonRaw = body.contentJson ?? body.content_json ?? null;
+    let contentJson: string | null = null;
+    if (contentJsonRaw !== null && contentJsonRaw !== undefined) {
+      if (typeof contentJsonRaw === "string") {
+        try {
+          JSON.parse(contentJsonRaw);
+          contentJson = contentJsonRaw;
+        } catch {
+          return NextResponse.json({ error: "Invalid contentJson." }, { status: 400 });
+        }
+      } else if (typeof contentJsonRaw === "object") {
+        contentJson = JSON.stringify(contentJsonRaw);
+      }
+    }
 
-    return NextResponse.json(
-      {
-        checkpoint: {
-          ...inserted[0],
-          displayName: user.displayName,
-          userEmail: user.email,
-        },
-      },
-      { status: 201 }
-    );
+    if (!note) {
+      return NextResponse.json(
+        { error: "Note content is required." },
+        { status: 400 }
+      );
+    }
+
+    const rawCheckpoint = await createCheckpoint(user, note, contentJson);
+    // Enrich so response carries current avatar/displayName (accurate update after rename)
+    const [checkpoint] = await enrichCheckpoints([rawCheckpoint as unknown as { userId: string; displayName: string | null; userEmail: string; avatarDriveId?: string | null }]);
+    return NextResponse.json({ checkpoint }, { status: 201 });
   } catch (err) {
-    console.error("[api/checkpoints] create failed:", err);
-    return NextResponse.json(
-      { error: "Couldn't post the checkpoint." },
-      { status: 500 }
-    );
+    return NextResponse.json(storeError(err), { status: 500 });
   }
 }
 
 export async function PATCH(req: Request) {
   const user = await requireApiSession();
-  if (!user) return UNAUTHORIZED;
-
-  const body = await readBody(req);
-  if (!body) {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
-  }
-  const id = typeof body.id === "string" ? body.id : "";
-  if (!id) {
-    return NextResponse.json(
-      { error: "A checkpoint id is required." },
-      { status: 400 }
-    );
-  }
-  const validated = validateNote(body.note);
-  if ("error" in validated) {
-    return NextResponse.json({ error: validated.error }, { status: 400 });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const existing = await db
-      .select({ id: checkpoints.id, userId: checkpoints.userId })
-      .from(checkpoints)
-      .where(eq(checkpoints.id, id))
-      .limit(1);
-    if (existing.length === 0) {
+    const body = await req.json();
+    const id = typeof body.id === "string" ? body.id : "";
+    const noteRaw = typeof body.note === "string" ? body.note : typeof body.content === "string" ? body.content : "";
+    const note = noteRaw.trim();
+    const contentJsonRaw = body.contentJson ?? body.content_json ?? null;
+    let contentJson: string | null | undefined = undefined;
+    if (contentJsonRaw !== null && contentJsonRaw !== undefined) {
+      if (typeof contentJsonRaw === "string") {
+        try {
+          JSON.parse(contentJsonRaw);
+          contentJson = contentJsonRaw;
+        } catch {
+          return NextResponse.json({ error: "Invalid contentJson." }, { status: 400 });
+        }
+      } else if (typeof contentJsonRaw === "object") {
+        contentJson = JSON.stringify(contentJsonRaw);
+      } else {
+        contentJson = null;
+      }
+    }
+
+    if (!id) {
       return NextResponse.json(
-        { error: "That checkpoint no longer exists." },
-        { status: 404 }
+        { error: "Checkpoint id is required." },
+        { status: 400 }
       );
     }
-    // Ownership is read from the stored row, not from the request.
-    if (existing[0].userId !== user.id && user.role !== "admin") {
+    if (!note) {
       return NextResponse.json(
-        { error: "You can only edit your own checkpoints." },
-        { status: 403 }
+        { error: "Note content is required." },
+        { status: 400 }
       );
     }
 
-    const updated = await db
-      .update(checkpoints)
-      .set({ note: validated.note, updatedAt: new Date() })
-      .where(eq(checkpoints.id, id))
-      .returning({
-        id: checkpoints.id,
-        note: checkpoints.note,
-        createdAt: checkpoints.createdAt,
-        updatedAt: checkpoints.updatedAt,
-        userId: checkpoints.userId,
-      });
-
-    return NextResponse.json({ checkpoint: updated[0] });
+    const rawCheckpoint = await updateCheckpoint(user, id, note, contentJson);
+    const [checkpoint] = await enrichCheckpoints([rawCheckpoint as unknown as { userId: string; displayName: string | null; userEmail: string; avatarDriveId?: string | null }]);
+    return NextResponse.json({ checkpoint });
   } catch (err) {
-    console.error("[api/checkpoints] update failed:", err);
-    return NextResponse.json(
-      { error: "Couldn't save the change." },
-      { status: 500 }
-    );
+    if (err instanceof CheckpointNotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+    if (err instanceof CheckpointForbiddenError) {
+      return NextResponse.json({ error: err.message }, { status: 403 });
+    }
+    return NextResponse.json(storeError(err), { status: 500 });
   }
 }
 
 export async function DELETE(req: Request) {
   const user = await requireApiSession();
-  if (!user) return UNAUTHORIZED;
-
-  const body = await readBody(req);
-  const id = body && typeof body.id === "string" ? body.id : "";
-  if (!id) {
-    return NextResponse.json(
-      { error: "A checkpoint id is required." },
-      { status: 400 }
-    );
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const existing = await db
-      .select({ id: checkpoints.id, userId: checkpoints.userId })
-      .from(checkpoints)
-      .where(eq(checkpoints.id, id))
-      .limit(1);
-    if (existing.length === 0) {
+    const body = await req.json().catch(() => null);
+    const id =
+      body && typeof body.id === "string" ? (body.id as string) : "";
+
+    if (!id) {
       return NextResponse.json(
-        { error: "That checkpoint no longer exists." },
-        { status: 404 }
-      );
-    }
-    if (existing[0].userId !== user.id && user.role !== "admin") {
-      return NextResponse.json(
-        { error: "You can only delete your own checkpoints." },
-        { status: 403 }
+        { error: "Checkpoint id is required." },
+        { status: 400 }
       );
     }
 
-    await db.delete(checkpoints).where(eq(checkpoints.id, id));
+    // Soft-delete (team decision): stamps deleted_at in the sheet; the row
+    // stays as history but is hidden from every read.
+    await deleteCheckpoint(user, id);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[api/checkpoints] delete failed:", err);
-    return NextResponse.json(
-      { error: "Couldn't delete the checkpoint." },
-      { status: 500 }
-    );
+    if (err instanceof CheckpointNotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+    if (err instanceof CheckpointForbiddenError) {
+      return NextResponse.json({ error: err.message }, { status: 403 });
+    }
+    return NextResponse.json(storeError(err), { status: 500 });
   }
 }
