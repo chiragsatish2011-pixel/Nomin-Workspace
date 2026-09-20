@@ -9,6 +9,7 @@ on:
       - 'capacitor.config.ts'
       - 'package.json'
       - 'android/**'
+      - '.github/workflows/mobile.yml'
 
 jobs:
   build:
@@ -29,7 +30,10 @@ jobs:
           java-version: '17'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Prepare Capacitor assets directory
+        run: mkdir -p android/app/src/main/assets
 
       - name: Sync Capacitor
         run: npx cap sync android
