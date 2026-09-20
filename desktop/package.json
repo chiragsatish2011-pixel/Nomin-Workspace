@@ -1,10 +1,16 @@
 {
   "name": "nomin-workspace",
   "version": "1.0.0",
+  "author": "Chirag",
+  "description": "Nomin Workspace Desktop App",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chiragsatish2011-pixel/Nomin-Workspace.git"
+  },
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "build": "electron-builder -w -l"
+    "start": "electron . --disable-gpu",
+    "build": "electron-builder -w -l --publish=never"
   },
   "build": {
     "appId": "com.nomin.workspace",
