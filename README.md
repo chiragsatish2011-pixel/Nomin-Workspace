@@ -1,64 +1,107 @@
-# Nomin Workspace
+# Nomin Workspace (Phase 0–1)
 
-A private team workspace: a shared progress timeline, plus routed shells for
-files, projects and chat. Built as a Next.js App Router application with
-server-enforced auth and a Postgres schema that covers every section.
+Custom team workspace for a 3–10 person team. **Phase 0–1 only:** project
+scaffold, Postgres schema, email/password auth (NextAuth Credentials), and a
+minimal dashboard shell. Chat, video/calls, and Drive integration come in later
+phases and intentionally do not exist in this codebase yet.
 
-## Tech stack
+## Tech stack (exact)
 
-- **Next.js 16** (App Router) + TypeScript + **Tailwind CSS v4**
-- **NextAuth v4** — Credentials provider (email + password), JWT sessions
-- **Postgres** via the Neon serverless driver (`@neondatabase/serverless`
-  HTTP driver — one fetch per query, no connection pool, so every route is
-  stateless and fits a serverless host)
-- **Drizzle ORM** (`drizzle-orm` + `drizzle-kit`) for schema and migrations
-- **bcryptjs** for password hashing — plaintext is never stored or logged
+- Next.js (App Router) + TypeScript + Tailwind CSS
+- NextAuth.js v4 — Credentials provider (email + password), JWT sessions
+- Postgres via Neon serverless driver (`@neondatabase/serverless` HTTP driver —
+  one fetch per query, no connection pool, safe for Vercel serverless)
+- Drizzle ORM (`drizzle-orm` + `drizzle-kit`) for schema and migrations
+- bcryptjs for password hashing (never plaintext)
 
 ## Design system
 
-Nomin's own palette and type pairing, defined once as tokens in
-`app/globals.css` and consumed as Tailwind utilities:
+Kraken theme — see `DESIGN-kraken.md` for the full spec and
+`app/globals.css` for the tokens that implement it. The older
+`DESIGN-cohere.md`, `DESIGN-minimax.md` and `traderview.design.md` describe
+the superseded system and are kept only for reference.
 
-- Purple `#7132f5` for primary actions and brand marks.
-- IBM Plex Sans for display type, Inter for UI and body, mono for
-  micro-labels.
-- White canvas, hairline borders, flat surfaces, pill-shaped controls.
-- One identity colour per section, reserved for that section alone:
-  Checkpoints `#149e61` · Files `#2563eb` · Projects `#c2410c` ·
+- White canvas, cool blue-grey neutrals (`#686b82` / `#9497a9`), hairline
+  borders (`#dedee5`), whisper-level shadows.
+- Kraken Purple (`#7132f5`) owns every CTA, link, focus ring and active
+  nav item; `#5741d8` for hover and outlined variants.
+- IBM Plex Sans throughout — the documented fallback for Kraken-Brand
+  (display, 700, negative tracking) and Kraken-Product (UI, 400–600);
+  IBM Plex Mono for micro-labels.
+- 12px is the ceiling for buttons (never pill), 16px for cards.
+- One identity color per section, tuned to the Kraken scale:
+  Checkpoints `#149e61` · Files `#2f6bf0` · Projects `#e0523c` ·
   Chat `#7132f5`.
-- Dark mode redefines the same token names, so no component carries a
-  `dark:` colour variant.
+- Deep-purple brand panel on auth pages; purple announcement bar.
+- CSS-only animation (no library): staggered entrances, scroll reveals,
+  animated gradients, sheen sweeps, marquee band, pulsing status dots —
+  all disabled under `prefers-reduced-motion`.
 
-## What works, and what doesn't
+## Prerequisites
 
-Stated plainly, because the UI says the same thing:
-
-| Area | State |
-|---|---|
-| Auth, sessions, route guards | Working end to end |
-| `/setup` first-run wizard | Working — database, tables, owner account |
-| Admin account management | Working — create, change password, delete |
-| Settings (own profile) | Working |
-| **Checkpoints** | **Working end to end** — post, edit, delete, timeline |
-| Files, Projects, Chat | Routed, designed, navigable — **no data layer yet.** The tables exist in the schema; nothing reads or writes them. |
+- Node.js 20+ and npm
+- A Neon Postgres project (this workspace is linked to `dry-frost-39520544`,
+  branch `production`) — grab its **pooled** connection string from the Neon
+  dashboard → Connect
+- Optional for deploys: a Vercel account + a GitHub repo
 
 ## Environment variables
 
-Three, and no others:
-
 | Name | Used for | Example |
 |---|---|---|
-| `DATABASE_URL` | Postgres connection. Use a **pooled** URL (Neon: the `-pooler` host) — serverless functions would exhaust a normal pool. | `postgresql://USER:PASSWORD@HOST-pooler/DB?sslmode=require` |
-| `NEXTAUTH_SECRET` | Signs JWT sessions. Generate with `openssl rand -base64 32`. | any strong random string |
-| `NEXTAUTH_URL` | Public app URL, used for callbacks and redirects. | `http://localhost:3000` locally |
+| `DATABASE_URL` | Neon **pooled** Postgres URL (runtime queries + migrations). Must be the pooler host (`…-pooler.…`), never a direct connection — serverless functions would exhaust a normal pool. | `postgresql://USER:PASSWORD@HOST-pooler/DB?sslmode=require` |
+| `NEXTAUTH_SECRET` | Signs JWT sessions (`openssl rand -base64 32`) | any strong random string |
+| `NEXTAUTH_URL` | Public app URL (callbacks/redirects) | `http://localhost:3000` locally, `https://YOUR-APP.vercel.app` in prod |
 
-Copy `.env.example` to `.env.local` for development, or set them in your
-host's dashboard for a deploy — a local `.env.local` never deploys.
+That's all three — there are no other variables to set. Every secret comes
+from the environment — there are zero hardcoded secrets in the codebase.
 
-A missing variable fails fast with a message naming it (via `lib/env.ts`),
-rather than surfacing later as a generic 500. `next build` still succeeds
-without them, so CI stays green. `/setup` is the one flow that runs without
-`DATABASE_URL`, since step 1 is what collects it.
+They must be set in Vercel's dashboard (**Project Settings → Environment
+Variables**) separately from any local `.env` file, for **Production**,
+**Preview**, and **Development**. A local `.env.local` never deploys —
+if a variable is missing in Vercel, production breaks even when local dev
+works.
+
+Missing variables fail fast with a loud error naming the exact variable
+(checked on first database/auth access, via `lib/env.ts` — `next build`
+still succeeds without them so CI stays green):
+
+- `DATABASE_URL is not set. Add it in Vercel's Environment Variables settings for this environment.`
+- `NEXTAUTH_SECRET is not set. Add it in Vercel's Environment Variables settings for this environment.`
+- `NEXTAUTH_URL is not set. Add it in Vercel's Environment Variables settings for this environment.`
+
+The `/setup` wizard is the only flow that works without `DATABASE_URL`
+(step 1 collects it); everything else throws the above instead of failing
+later with a generic 500.
+
+## Team-only access (no public registration)
+
+There is **no sign-up page**, and users have **no self-service password
+UI at all** — only admins control credentials:
+
+- **First account:** seed it directly (see below), or use the `/setup`
+  wizard which creates the owner as `admin` (and refuses once any user
+  exists — it can never hijack a live workspace).
+- **Everyone else:** an admin creates them at **Admin → New account**
+  (sidebar, admins only) with a password the admin types. The password
+  is shown **once** in a copy box — share it privately.
+- **Changes & removals:** on that same admin page, each team row has
+  **Change password** (new password, no current-password needed) and
+  **Delete** (admins can't delete their own account).
+- Members just sign in and land on the dashboard. **Settings** is a
+  read-only account summary — password help goes through the admin.
+
+## Seed the first admin
+
+```bash
+DATABASE_URL="postgresql://..." npm run db:seed
+# or with DATABASE_URL in .env.local: npm run db:seed
+```
+
+Creates (or updates to admin) `admin@nomin.com` / `1234` — a
+**placeholder credential**. Change it immediately after signing in via
+**Admin → Change password** on your own row. Login lowercases emails,
+so `Admin@nomin.com` works too.
 
 ## Run locally
 
@@ -67,114 +110,104 @@ npm install
 npm run dev
 ```
 
-Then open <http://localhost:3000/setup> and follow the three steps —
-database, tables, owner account — all in the browser.
+Open http://localhost:3000/setup and follow the 3-step wizard — database,
+tables, owner account — all in the browser. (Manual alternative: paste
+`DATABASE_URL` into `.env.local` and run `npm run db:migrate`.)
 
-Terminal alternative:
+Then:
 
-```bash
-# 1. Put DATABASE_URL, NEXTAUTH_SECRET and NEXTAUTH_URL in .env.local
-npm run db:migrate    # create the tables
-npm run db:seed       # create admin@nomin.app with a placeholder password
-```
+1. Seed the admin (`npm run db:seed`, see above) or run the `/setup`
+   wizard to create tables + owner.
+2. Sign in at `/signin` — you land directly on the dashboard.
+3. As admin, create member accounts at **Admin → New account** — share
+   each password privately; it's shown once and never stored.
+4. Members sign straight into the dashboard (Files / Projects / Chat /
+   Calls placeholders) plus read-only **Settings**.
+5. Sign out via the sidebar button.
 
-The seed prints a placeholder password — **change it immediately** after
-signing in, from **Admin → your row → Change password**.
-
-## Team-only access
-
-There is **no sign-up page**, and members have **no self-service password
-UI** at all:
-
-- **First account** — the `/setup` wizard (which creates it as `admin` and
-  then refuses to run again, so it can never hijack a live workspace), or
-  `npm run db:seed`.
-- **Everyone else** — an admin creates them at **Admin → New account** with
-  a password the admin types. It is shown once, in a copy box, and is never
-  stored in plaintext or recoverable afterwards.
-- **Changes and removals** — the same page: each row has *Change password*
-  and *Delete*. Admins cannot delete their own account.
-- **Settings** lets a member edit their display name, department and job
-  title. Email, role and password are an admin's to change.
+Verify hashing: check the `users` table — `password_hash` holds a `$2b$…`
+bcrypt hash, never the plaintext password.
 
 ## Project structure
 
 ```
 app/
-  page.tsx                dashboard (protected)
-  signin/                 sign-in (public, no registration links)
-  setup/                  first-run wizard (public until an account exists)
-  settings/               own profile + read-only account summary
-  admin/                  create / change password / delete (admins only)
-  checkpoints/            the team timeline — fully working
-  files|projects|chat/    routed section shells, no data layer yet
-  api/auth/[...nextauth]/ NextAuth handler (GET + POST)
-  api/admin/users/        admin-only GET / POST / PATCH / DELETE
-  api/checkpoints/        GET / POST / PATCH / DELETE, author-or-admin
-  api/user/profile/       PATCH own profile only
-  api/setup/*/            wizard endpoints (status / database / migrate / owner)
-components/               AppShell, sections registry, Button, Badge, …
-lib/env.ts                fail-fast env validation
-lib/auth.ts               NextAuth options (JWT sessions, secure cookies)
-lib/session.ts            requireActiveSession / requireAdmin / API variants
-lib/setup.ts              wizard helpers (probe, bootstrap, dev env write)
-db/                       schema.ts (7 tables) + index.ts (Neon HTTP client)
-drizzle/                  generated SQL migrations
-proxy.ts                  route protection (Next.js 16's middleware)
-scripts/seed-admin.mjs    one-time first-admin bootstrap
+  page.tsx                    dashboard (protected)
+  signin/page.tsx             sign-in (public, no registration links)
+  settings/page.tsx           read-only account summary (protected, no password UI)
+  admin/page.tsx              full credential control: create/change-password/delete (admin only)
+  setup/page.tsx              first-run wizard: DB, tables, owner (public until done)
+  files|projects|chat|calls/  "Coming soon" placeholders
+  api/auth/[...nextauth]/     NextAuth handler (GET+POST)
+  api/admin/users/            admin-only create (POST) / change password (PATCH) / delete (DELETE), bcrypt
+  api/setup/*/                wizard endpoints (status/database/migrate/owner)
+components/  AppShell, SectionMatrix, AuthLayout, ComingSoon, CreateAccountForm, UserRowActions, …
+lib/auth.ts  NextAuth options (JWT Sessions, secure cookies)
+lib/session.ts  requireActiveSession / requireAdmin route guards
+db/          schema.ts (users table) + index.ts (stateless Neon HTTP client)
+scripts/     seed-admin.mjs (one-time first-admin bootstrap, run via db:seed)
+drizzle/     SQL migrations (apply with db:migrate)
+middleware.ts  withAuth route protection → redirects to /signin
 ```
 
-## Architecture notes
+## Deploy to Vercel
 
-**Where authorization actually happens.** `proxy.ts` redirects signed-out
-visitors away from page routes — a convenience, not the security boundary.
-The real check is in `lib/session.ts`, which re-reads the user row from the
-database on every protected page and API route, so a token belonging to a
-deleted or demoted account is rejected immediately rather than at expiry.
+No `vercel.json` needed — Next.js deploys with zero extra config.
 
-**Why `/api` is excluded from the proxy.** `withAuth` answers an
-unauthenticated request with a redirect to the HTML sign-in page. That is
-correct for a navigation and wrong for a `fetch`, which would follow it and
-fail parsing HTML as JSON. API routes therefore guard themselves and answer
-`401`/`403` JSON. The cost: a new route that forgets `requireApiSession()`
-is public. That rule is written down in `AGENTS.md`.
+1. Push this folder to a GitHub repo (`main` branch).
+2. Vercel → Add New Project → import the repo (framework preset: Next.js).
+3. In **Project Settings → Environment Variables**, set exactly these —
+   per environment:
 
-**Why the database client is a Proxy.** `db` resolves lazily so a missing
-`DATABASE_URL` throws on first use with a message naming the variable —
-while `next build` still succeeds and `/setup` can render before any
-database exists.
+   | Variable | Production | Preview | Development |
+   |---|---|---|---|
+   | `DATABASE_URL` | Neon **pooled** URL (`…-pooler.…?sslmode=require`) | Same value (or a Neon preview-branch URL) | `http://localhost` use only via local `.env.local`, not Vercel |
+   | `NEXTAUTH_SECRET` | Strong random (`openssl rand -base64 32`), production-only | Can reuse Production's value | Local `.env.local` only |
+   | `NEXTAUTH_URL` | `https://YOUR-APP.vercel.app` — your real deployed URL | **Do NOT set** — NextAuth auto-detects Vercel preview URLs; a static value here breaks callbacks | `http://localhost:3000` |
 
-**Two copies of the schema.** `drizzle/0000_init.sql` is generated from
-`db/schema.ts`; `EMBEDDED_BOOTSTRAP` in `lib/setup.ts` is a fallback for
-runtimes where the migration files aren't readable. Both are verified to
-produce byte-identical columns, constraints and indexes. Change the schema
-and you must update all three.
+   ⚠️ `NEXTAUTH_URL` must be the real deployed URL, not localhost — auth
+   breaks otherwise. If you add a **custom domain later, update
+   `NEXTAUTH_URL` to it and redeploy**, or sign-in callbacks will fail.
+4. Deploy. Vercel runs `npm run build` (`next build`).
+5. After deploy, open `https://YOUR-APP.vercel.app/setup` in the browser
+   to create tables + owner account (set `DATABASE_URL` first, then the
+   wizard; no terminal needed).
+
+Database on Vercel: the app uses Neon's HTTP driver — every API route is
+stateless and completes quickly (no long-lived connections, no in-memory
+session store, no background workers), so it fits Vercel's serverless model.
+Later phases will use Pusher/Ably (chat) and LiveKit/Daily (calls) for the
+persistent-connection parts — nothing in this phase tries to hold sockets
+open on Vercel.
 
 ## Scripts
 
 - `npm run dev` / `npm run build` / `npm start` — standard Next.js
-  (Turbopack is the default in 16; no `--turbopack` flag needed)
-- `npm run lint` — ESLint
 - `npm run db:generate` — regenerate SQL from `db/schema.ts`
 - `npm run db:migrate` — apply `drizzle/` migrations (needs `DATABASE_URL`)
 - `npm run db:push` — quick prototype sync (needs `DATABASE_URL`)
-- `npm run db:seed` — create or promote the first admin
+- `npm run db:seed` — create/update the first admin (`admin@nomin.com`, needs `DATABASE_URL`)
 
 ## Security notes
 
-- Passwords are bcrypt-hashed at cost 12; plaintext is never stored or
-  logged. A minimum of 8 characters is enforced server-side.
-- Sign-in returns the same failure for an unknown email and a wrong
-  password, so the form cannot be used to enumerate accounts. The
-  distinction stays in the server log.
-- A database or configuration outage during sign-in is reported as a
-  distinct error, never as "wrong password".
-- Session cookies are `httpOnly`, `sameSite=lax`, and `Secure` with a
-  `__Secure-` prefix in production.
-- Security headers (`X-Frame-Options`, `X-Content-Type-Options`,
-  `Referrer-Policy`, `Permissions-Policy`, HSTS) are set in
-  `next.config.ts`.
-- Write permissions are always checked against the stored row, never
-  against an id supplied by the client.
+- Passwords hashed with bcrypt (cost 12) via bcryptjs; plaintext never stored
+  or logged. Minimum password length 8 enforced server-side on the admin
+  panel (the one-time seed uses a placeholder that must be changed
+  immediately). Passwords shown in the admin UI appear once and never
+  touch logs or storage.
+- NextAuth JWT strategy with `NEXTAUTH_SECRET` from env; session cookie is
+  `httpOnly` and `Secure` in production (`__Secure-` prefix).
+- `middleware.ts` guards all routes except `/signin`, `/setup`,
+  `/api/auth/*`, `/api/setup/*`, and static assets. There is no public
+  registration route at all.
 - Failures log with route context (`[auth][authorize]`, `[admin/users]`,
-  `[api/checkpoints]`, `[setup/*]`) — check your host's function logs.
+  `[setup/*]`, `[seed-admin]`) — check Vercel → Project → Logs →
+  Functions when production misbehaves.
+
+## Deliberately out of scope (later phases)
+
+No chat, video/voice, or Google Drive code exists yet — no Pusher/Ably,
+LiveKit/Daily, Drive API, pickers, or upload routes. The top-nav sections
+reserve their URLs only.
+#   N - C - S t u d i o  
+ 
