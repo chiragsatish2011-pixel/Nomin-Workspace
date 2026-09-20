@@ -1,0 +1,188 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * NOMIN DESIGN SYSTEM
+ * ───────────────────────────────────────────────────────────────
+ * The palette and type pairing are Nomin's own — carried over from the
+ * original design system, not from any other workspace:
+ *
+ *   Identity ....... Purple #7132f5 for primary actions and brand marks.
+ *   Type ........... IBM Plex Sans display + Inter for UI and body,
+ *                    with a mono face reserved for micro-labels.
+ *   Surfaces ....... White canvas, hairline borders, flat panels,
+ *                    shadows only where elevation carries meaning.
+ *   Section colors . Each workspace section owns ONE identity color,
+ *                    tuned around the purple so the set reads as a family:
+ *                    Checkpoints=green · Files=blue · Projects=orange ·
+ *                    Chat=purple. Never use these for generic UI.
+ *
+ * Tokens are declared once here and consumed as Tailwind utilities
+ * (bg-canvas, text-ink, border-hairline, …). Dark mode redefines the same
+ * names, so no component needs a dark: variant for color alone.
+ */
+
+@theme inline {
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-plex);
+  --font-mono: var(--font-geist-mono);
+}
+
+@theme {
+  /* Brand */
+  --color-purple: #7132f5;
+  --color-purple-dark: #5741d8;
+  --color-purple-deep: #5b1ecf;
+  --color-purple-soft: #f0e9ff;
+
+  /* Ink & neutrals */
+  --color-ink: #101114;
+  --color-charcoal: #22242c;
+  --color-slate: #45495e;
+  --color-steel: #686b82;
+  --color-stone: #9497a9;
+  --color-muted: #b4b6c4;
+  --color-canvas: #ffffff;
+  --color-fog: #f8f8fb;
+  --color-mist: #f2f2f6;
+  --color-hairline: #dedee5;
+  --color-hairline-soft: #e9e9ef;
+
+  /* Section identity colors (never for generic buttons or text) */
+  --color-emerald: #149e61;
+  --color-emerald-deep: #026b3f;
+  --color-azure: #2563eb;
+  --color-azure-deep: #1d4ed8;
+  --color-amber: #c2410c;
+  --color-amber-deep: #9a3412;
+
+  /* Semantic */
+  --color-success-bg: #e7f7ef;
+  --color-success-text: #026b3f;
+  --color-error: #c2334d;
+  --color-error-bg: #fdeef1;
+  --color-focus: #7132f5;
+
+  /* Elevation */
+  --shadow-subtle: 0 4px 24px rgba(0, 0, 0, 0.03);
+  --shadow-micro: 0 1px 4px rgba(16, 24, 40, 0.04);
+  --shadow-lifted: 0 12px 32px rgba(16, 17, 20, 0.08);
+
+  /* Motion */
+  --animate-fade-up: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.8s ease both;
+  --animate-pulse-dot: pulse-dot 2.2s ease-in-out infinite;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(20, 158, 97, 0.5);
+    }
+    50% {
+      box-shadow: 0 0 0 6px rgba(20, 158, 97, 0);
+    }
+  }
+}
+
+/*
+ * Dark mode — the same token names, redefined. Because every component
+ * consumes tokens rather than raw hex, this block is the entire dark
+ * theme; no component carries a dark: color variant.
+ */
+.dark {
+  --color-ink: #f4f4f7;
+  --color-charcoal: #e2e2e9;
+  --color-slate: #b9bbc9;
+  --color-steel: #9497a9;
+  --color-stone: #787b8d;
+  --color-muted: #5c5f70;
+  --color-canvas: #0d0e12;
+  --color-fog: #16171d;
+  --color-mist: #1c1e26;
+  --color-hairline: #2a2c36;
+  --color-hairline-soft: #23252e;
+  --color-purple-soft: #241a40;
+  --color-success-bg: #10281d;
+  --color-success-text: #4ade80;
+  --color-error-bg: #2b1119;
+  --color-error: #f87171;
+}
+
+/*
+ * Respect the OS setting for anyone who has never touched the in-app
+ * toggle. Once they do, ThemeToggle writes `.dark` (or removes it) on
+ * <html>, and the class above wins over this block.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-hairline);
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* One focus treatment everywhere, in the brand color. */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Display type: the Plex face, tightened, for headings only. */
+  .text-display {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+  }
+
+  /* Mono micro-label: section eyebrows, metadata, table headers. */
+  .text-micro {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+}
+
+/* Anyone who asked for less motion gets none of it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
