@@ -10,7 +10,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron . --disable-gpu",
-    "build": "electron-builder -w -l --publish=never"
+    "build:win": "electron-builder --win --publish=never",
+    "build:linux": "electron-builder --linux --publish=never"
   },
   "build": {
     "appId": "com.nomin.workspace",

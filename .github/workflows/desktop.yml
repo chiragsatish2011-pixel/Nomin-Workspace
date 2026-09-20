@@ -1,5 +1,4 @@
 name: Build Desktop Apps
-
 on:
   workflow_dispatch:
   push:
@@ -7,37 +6,42 @@ on:
       - main
     paths:
       - 'desktop/**'
+      - '.github/workflows/desktop.yml'
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
-
+        include:
+          - os: ubuntu-latest
+            build_script: build:linux
+            artifact_paths: |
+              desktop/dist/*.AppImage
+              desktop/dist/*.deb
+          - os: windows-latest
+            build_script: build:win
+            artifact_paths: desktop/dist/*.exe
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Use Node.js
+      - name: Check out repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
-
-      - name: Install Dependencies
-        working-directory: ./desktop
-        run: npm install
-
-      - name: Build App
-        working-directory: ./desktop
-        run: npm run build
-        
           
-
-      - name: Upload Artifacts
+      - name: Install dependencies
+        working-directory: desktop
+        run: npm install
+        
+      - name: Build app
+        working-directory: desktop
+        run: npm run ${{ matrix.build_script }}
+        
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Desktop-Apps-${{ matrix.os }}
-          path: |
-            desktop/dist/*.exe
-            desktop/dist/*.AppImage
-            desktop/dist/*.deb
+          path: ${{ matrix.artifact_paths }}
+          if-no-files-found: error
