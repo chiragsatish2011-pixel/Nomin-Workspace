@@ -1,7 +1,7 @@
 {
   "name": "nomin-workspace",
   "version": "1.0.0",
-  "author": "Chirag",
+  "author": "Chirag <chirag@nomin.ai>",
   "description": "Nomin Workspace Desktop App",
   "repository": {
     "type": "git",
